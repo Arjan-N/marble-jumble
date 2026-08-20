@@ -23,10 +23,12 @@
 **Decision:** Lock the initial physics/camera/course feel before implementation.
 
 **Locked decisions:**
-- **Camera/projection:** landscape 2.5D; course runs longitudinally/down-course, generally away from the player. Use a controlled angled perspective rather than a side-on view.
+- **Platform:** the shipped game is intended to be native mobile (Android/iOS). Browser play is a development/testing target, not the shipping platform.
+- **Camera/projection:** landscape 2.5D using a controlled, weak-perspective angled camera rather than an orthographic/isometric or side-on view. The course runs longitudinally/down-course, generally away from the player.
 - **Camera movement:** follow the player's marble with deliberate look-ahead.
 - **Camera look-ahead:** approximately 3–4 seconds of course ahead.
 - **Physics:** stylised-realistic; believable gravity, momentum, friction and collisions tuned for entertaining outcomes rather than literal real-world accuracy.
+- **Physics space:** genuine 3D rigid-body physics constrained by the physical course geometry; the course defines where marbles can roll rather than relying on mostly-2D simulation.
 - **Marble scale:** between realistic and oversized; large enough for mobile readability while still reading clearly as marbles. Treat size as a tuning parameter.
 - **Track width:** generally wide enough for marbles to spread out, with deliberate collision/chaos sections.
 - **Race control:** watch-only during the race. No steering, nudging or abilities in Phase 0.
@@ -40,25 +42,29 @@
 - **Elevation:** mostly downhill, with flat sections and a small uphill/slowdown section.
 - **Curves:** natural 3D path curves with banking; Phase 0 includes a gentle S-curve.
 - **Surfaces:** mixed rough Canyon/stone and smoother constructed sections.
-- **Starting sequence:** 12 marbles physically roll into a funnel/grid formation, settle, then the course-selection/starting presentation occurs.
-- **Start interaction:** player can tap the physical barrier to release the marbles. If untouched, it opens automatically after 5 seconds. Tapping has no effect on race outcome.
+- **Starting sequence:** 12 marbles physically roll into a funnel/grid formation and settle behind a physical barrier.
+- **Start interaction:** player can tap the physical barrier itself to release the marbles. If untouched, it opens automatically after 5 seconds. Tapping has no effect on race outcome. No separate countdown is required.
 - **Starting position:** player's marble is assigned a random starting position; its normal persistent highlight provides identification.
 - **Starting slots:** subtly varied per race so opening states are not identical, while avoiding an obviously advantageous slot.
-- **Course flow:** one simple Canyon prototype with gentle downhill opening → wider rolling section → narrowing/funnel → one jump → one simple active obstacle → short final stretch → finish.
-- **Branching:** any branch outcome is determined naturally by physics; no deliberate player route choice and no AI route selection.
-- **Falls:** leaving the course means elimination for now; the Phase 0 course should minimize unintended/excessive falls.
+- **Course flow:** one simple Canyon prototype with gentle downhill opening → wider rolling section → gentle S-curve → narrowing/funnel → physics-driven split/merge → short uphill/slowdown → meaningful short jump → rotating bumper → short final stretch → finish.
+- **Branching:** include one simple split/merge in Phase 0. Which route a marble takes is determined naturally by physics; there is no deliberate player route choice and no AI route selection.
+- **Falls:** leaving the course means elimination for now. The Phase 0 course should have **low** fall/elimination risk overall; falling should be an occasional consequence, not the dominant failure mode.
+- **Finish:** use a physical finish area plus a reliable trigger/finish condition for game-state detection.
+- **Stuck handling:** configurable stuck detection is not required for the first physics experiment; add it if the prototype demonstrates a real stuck-state problem. Any future timeout should be a technical parameter rather than a gameplay feature.
 - **Phase 0 obstacle:** rotating bumper.
 - **Future obstacle vocabulary:** boosters, launchers, moving platforms, bumpers, conveyor belts and similar mechanics remain planned for later courses, but are not required for Phase 0.
+- **Prototype physics parameters:** marble diameter, mass, friction, restitution/bounce, damping and related constants are tuning parameters and should be established through prototype testing rather than treated as fixed design decisions.
+- **Course boundaries:** use physical course geometry as the primary containment. Limited helper collision geometry is acceptable where needed for reliable physical boundaries; it must not manipulate race outcomes.
+- **Browser testing:** browser support should be available for fast iteration and phone testing, but mobile native Android/iOS remains the actual product target. Mobile-only browser support is acceptable if it materially simplifies implementation/testing.
+- **Performance baseline:** start with a low-to-mid-range modern mobile target and tune after real-device testing.
 
 ### Still undecided
 
 - Exact Godot 4.x version
-- Rendering approach beyond the initial compatibility-oriented prototype
-- Exact camera angle/projection parameters
+- Exact camera angle/focal parameters
 - Exact physics tuning values (friction, restitution, gravity scaling, etc.)
-- Exact mobile performance baseline / target frame rate
+- Exact mobile performance target / frame-rate target after first real-device test
 - Determinism guarantees of the physics simulation
-- Exact finish/stuck timeout behaviour
+- Exact visual language for elimination and course roulette
 - Course weighting and duplicate-course rules
-- Final visual language for elimination and course roulette
 - Economy/reward values and course unlock structure
