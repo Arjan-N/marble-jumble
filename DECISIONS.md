@@ -37,7 +37,7 @@
 - **Opponent behaviour:** no AI; opponents are physics-driven participants.
 - **Simulation:** fully physically simulated in Phase 0, with no invisible assistance, scripted outcomes or corrective forces.
 - **Race variability:** course layout remains consistent; physics should create meaningful variation in outcomes.
-- **Course length:** target 20–30 seconds per course.
+- **Course length:** target 20–30 seconds per course. This supersedes the 30–40 second figure in PROJECT.md v0.2.
 - **Course geometry:** hybrid long-term, but Phase 0 is primarily a solid trough/channel with a few constructed sections.
 - **Elevation:** mostly downhill, with flat sections and a small uphill/slowdown section.
 - **Curves:** natural 3D path curves with banking; Phase 0 includes a gentle S-curve.
@@ -55,8 +55,20 @@
 - **Future obstacle vocabulary:** boosters, launchers, moving platforms, bumpers, conveyor belts and similar mechanics remain planned for later courses, but are not required for Phase 0.
 - **Prototype physics parameters:** marble diameter, mass, friction, restitution/bounce, damping and related constants are tuning parameters and should be established through prototype testing rather than treated as fixed design decisions.
 - **Course boundaries:** use physical course geometry as the primary containment. Limited helper collision geometry is acceptable where needed for reliable physical boundaries; it must not manipulate race outcomes.
-- **Browser testing:** browser support should be available for fast iteration and phone testing, but mobile native Android/iOS remains the actual product target. Mobile-only browser support is acceptable if it materially simplifies implementation/testing.
+- **Browser testing:** browser support should be available for fast iteration and phone testing, but mobile native Android/iOS remains the actual product target. Neither desktop nor mobile browser is a shipping platform; at least one fast browser loop plus real native-device testing must exist, and whichever browser target proves materially harder to support may be dropped.
 - **Performance baseline:** start with a low-to-mid-range modern mobile target and tune after real-device testing.
+
+### Phase 0 field size — 2026-08-20
+
+**Decision:** Phase 0 ships with the full **12-marble** field, not a single marble.
+
+**Rationale:**
+- The Phase 0 success criteria include readable collision deflections and interesting split/merge outcomes. Neither can be evaluated with one marble.
+- The locked start sequence (funnel formation behind a physical barrier) is inherently a multi-marble presentation; building it for one marble means building it twice.
+
+**Implication:**
+- A single-marble build remains a valid internal checkpoint for tuning marble feel, but it does not satisfy Phase 0.
+- Supersedes the "one marble" line in the PROJECT.md v0.2 Phase 0 list.
 
 ### Still undecided
 
@@ -68,3 +80,6 @@
 - Exact visual language for elimination and course roulette
 - Course weighting and duplicate-course rules
 - Economy/reward values and course unlock structure
+- Survivor rule when fewer marbles finish a round than the round requires
+- Whether Round 1's course is also chosen by roulette, or only rounds 2 and 3
+- Which two of Courses / Marble / Shop occupy the flanking home-screen buttons

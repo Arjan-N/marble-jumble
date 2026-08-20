@@ -220,7 +220,7 @@ The prototype should support a rapid loop:
 Implement → run in browser → test on phone → tune → repeat
 ```
 
-Mobile browser testing is optional if desktop browser testing plus direct native-device testing is materially simpler.
+Neither desktop browser nor mobile browser is a shipping platform. At least one fast browser loop must exist, plus real native-device testing; whichever browser target proves materially harder to support may be dropped.
 
 Avoid architecture that requires an APK build for every tiny iteration.
 

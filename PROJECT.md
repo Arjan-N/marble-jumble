@@ -1,8 +1,20 @@
 # Marble Jumble — Project Specification
 
 **Status:** Pre-production / prototype planning  
-**Version:** 0.2  
+**Version:** 0.3  
 **Source of truth:** This document defines current product intent. Agents must not invent gameplay rules that contradict it.
+
+**Document precedence.** Where documents disagree, the more specific and more recent one wins:
+
+```text
+DECISIONS.md            (locked decisions, dated)
+        ↓
+docs/PHASE_0_*.md       (locked scope for the current phase)
+        ↓
+PROJECT.md              (general product intent)
+```
+
+PROJECT.md remains authoritative for anything the other two do not cover.
 
 ## 1. Product definition
 
@@ -50,6 +62,8 @@ The player can customize its appearance, but MVP gameplay attributes remain iden
 
 During a course, the player does not steer, jump, brake, aim, activate abilities, or otherwise influence the marble.
 
+The one permitted interaction is releasing the starting barrier before the race begins (see `DECISIONS.md`). It is presentation and agency only and must not affect the outcome.
+
 ### 2.3 Physics is the entertainment
 
 Prioritize:
@@ -90,7 +104,7 @@ Round 3
 3 marbles → 1 winner
 ```
 
-The three rounds use **three different courses**. Each round selects a course randomly from the player's eligible/unlocked course pool.
+The three rounds should use **three different courses**. Each round selects a course randomly from the player's eligible/unlocked course pool. Repeats are permitted only if the eligible pool is too small to avoid them; the exact rule is TBD (§17).
 
 The player watches one course, then experiences a transition sequence that visually removes eliminated marbles and selects the next course.
 
@@ -105,7 +119,7 @@ A marble finishes by reaching the course finish condition.
 
 A marble that leaves the playable course is eliminated.
 
-A marble that becomes stuck requires a configurable timeout; exact timeout is TBD.
+A marble that becomes stuck may need a timeout to resolve the round. Any such timeout is a **technical safeguard, not a gameplay feature**, and should only be added once a prototype demonstrates a real stuck-state problem. Phase 0 does not require it.
 
 ---
 
@@ -237,7 +251,7 @@ The game should avoid repeating a course within the same tournament unless the c
 
 ### Course duration
 
-Target: approximately **30–40 seconds per course**.
+Target: approximately **20–30 seconds per course**.
 
 A complete tournament therefore contains three short races plus transitions.
 
@@ -358,7 +372,7 @@ Do not add speed, mass, size, bounce, special powers, or other gameplay advantag
 
 ### Camera
 
-Exact camera/projection is TBD.
+Locked (`DECISIONS.md`): landscape 2.5D, controlled weak-perspective angled camera, following the player's marble with roughly 3–4 seconds of look-ahead. Exact angle and focal parameters remain TBD.
 
 The eventual camera should:
 
@@ -381,6 +395,32 @@ The eventual camera should:
 
 The player's marble should visibly exist in the home presentation, ideally rolling on a physical track so its customization is always visible.
 
+#### Home layout direction — 2026-08-20
+
+Design inspiration captured for later; not a Phase 0 requirement.
+
+```text
+┌─────────────────────────────────────┐
+│  ☰                          ⬤ 1,240 │   settings (top-left) · coins (top-right)
+│                                     │
+│                                     │
+│              ( marble )             │   player's marble, rolling, centre stage
+│                                     │
+│                                     │
+├───────────┬─────────────┬───────────┤
+│           │             │           │
+│           │    RACE     │           │   bottom bar = exactly 3 buttons,
+│           │             │           │   spanning full width, middle
+└───────────┴─────────────┴───────────┘   slightly larger, starts a race
+```
+
+- The bottom bar is the whole bar — three buttons, no gaps or floating tabs.
+- The middle button is slightly larger and starts a race.
+- Settings collapses to a hamburger at top-left; coins sit top-right.
+- The marble rolls in the centre, keeping cosmetics permanently visible.
+
+**Open:** the screen list above has five entries but the bar has two non-race slots. Which two of Courses / Marble / Shop get the flanking buttons — and where the third goes — is undecided.
+
 ### Pre-course / transition
 
 - current field of marbles
@@ -392,7 +432,7 @@ The player's marble should visibly exist in the home presentation, ideally rolli
 
 ### Gameplay
 
-- countdown
+- physical starting barrier (tap to release, auto-opens after 5s) — no separate 3–2–1 countdown
 - race
 - minimal race information
 - transition to elimination/course selection
@@ -449,9 +489,9 @@ rather than requiring an APK build for every tiny iteration.
 
 ### Technology stack
 
-**TBD.**
+**Godot 4** (locked 2026-08-20, see `DECISIONS.md`). Prototype with the Compatibility renderer so the browser target stays viable. Exact 4.x version TBD.
 
-Select the stack based on:
+It was selected on:
 
 - reliable physics
 - mobile performance
@@ -508,7 +548,9 @@ reproducible simulation
 
 This supports reproducible bugs, testing, future replays, daily challenges, and leaderboards.
 
-The exact determinism guarantees depend on the selected engine.
+Reproducibility means *the same seed reproduces the same race*, not that races repeat. Every race draws a fresh seed, so outcomes still vary (see `docs/PHASE_0_TECHNICAL_SPEC.md` §7).
+
+The exact determinism guarantees depend on the physics backend, and Godot's default configuration does not guarantee cross-platform reproducibility. If seeded replay becomes a requirement, it constrains the physics backend choice — decide before building on top of it, not after.
 
 ---
 
@@ -532,20 +574,22 @@ Exact device baseline and frame-rate target are TBD.
 
 ### Phase 0 — Physics prototype
 
-**Goal:** Prove that watching one marble run a course is satisfying.
+**Goal:** Prove that watching a physically simulated marble race is satisfying.
 
-Implement:
+See `docs/PHASE_0_TECHNICAL_SPEC.md` for the locked detail. In summary, implement:
 
-- one marble
-- one 2.5D course
+- 12 physics-driven marbles, identical attributes, no AI
+- one 2.5D Canyon course (20–30s)
 - physics
 - camera
-- start
+- barrier start sequence
 - finish
 - fall/off-course detection
 - restart
 - browser-playable build
 - phone testing
+
+A single-marble build is a valid internal checkpoint for tuning marble feel, but Phase 0 is not complete until the 12-marble race runs — the collision and split/merge success criteria cannot be evaluated without a full field.
 
 Exclude:
 
@@ -657,6 +701,8 @@ Given 6 active marbles, Round 2 produces exactly 3 survivors.
 
 Given 3 active marbles, Round 3 produces exactly 1 winner.
 
+These hold when enough marbles finish. Because falling off the course also eliminates a marble, a round can produce fewer finishers than it needs survivors — the resolution rule for that case is an open decision (§17) and must not be silently invented.
+
 ### Player marble
 
 The same player marble identity and cosmetic configuration persists across tournaments.
@@ -702,20 +748,23 @@ For product decisions not covered here, stop and ask rather than inventing a rul
 
 ## 17. Open decisions — do not silently guess
 
-1. Technology stack / engine
-2. Exact 2.5D camera/projection
-3. Physics model: realistic vs stylised-believable
-4. Exact finish/stuck timeout behaviour
-5. Course weighting and duplicate-course rules
-6. Exact visual language for elimination
-7. Exact course-roulette presentation and pacing
-8. How strongly the player's marble is highlighted during races
-9. Reward amounts and unlock prices
-10. Course unlock structure
-11. Target device baseline and frame-rate target
-12. Save model
-13. Exact difficulty / desired survival probabilities
-14. Exact age positioning
+1. Exact Godot 4.x version
+2. Exact camera angle / focal parameters
+3. Exact physics tuning values (friction, restitution, gravity scaling, marble diameter/mass)
+4. Determinism guarantees of the physics simulation
+5. Survivor rule when fewer marbles finish a round than the round requires (§15)
+6. Whether Round 1's course is also chosen by roulette, or only rounds 2 and 3 (§4.5, §5)
+7. Course weighting and duplicate-course rules
+8. Exact visual language for elimination
+9. Exact course-roulette presentation and pacing
+10. Reward amounts and unlock prices
+11. Course unlock structure
+12. Target device baseline and frame-rate target
+13. Save model
+14. Exact difficulty / desired survival probabilities
+15. Exact age positioning
+
+Items resolved since v0.2 — engine, camera/projection, physics model, marble highlight strength, stuck-timeout behaviour — are recorded in `DECISIONS.md`.
 
 ---
 
