@@ -1,70 +1,58 @@
 # Marble Jumble — Project Specification
 
 **Status:** Pre-production / prototype planning  
-**Version:** 0.1  
-**Source of truth:** This document defines the current product intent. Code should not invent product rules that contradict it.
-
----
+**Version:** 0.2  
+**Source of truth:** This document defines current product intent. Agents must not invent gameplay rules that contradict it.
 
 ## 1. Product definition
 
 ### One-liner
 
-> Marble Jumble is a casual mobile spectator game where 12 marbles race through chaotic physics-based courses. The player owns one persistent marble, watches it compete, and tries to survive three elimination rounds until one marble is crowned the winner.
+> **Marble Jumble is a casual mobile spectator game where your marble competes against other marbles in chaotic physics-based courses. Half the field is eliminated after each course until one marble wins the tournament.**
 
 ### Core fantasy
 
 > **Watch your marble survive the chaos.**
 
-The player does not directly control the marble during a race. The entertainment comes from anticipation, physics, collisions, near misses, unexpected outcomes, and seeing whether the player's marble survives to the next round.
+The player owns one persistent marble. They customize it, then watch it compete. There is no direct control during the race.
 
-### Genre
+The fun comes from anticipation, collisions, near misses, overtakes, unexpected physics, and seeing whether the player's marble survives to the next course.
+
+### Positioning
 
 - Casual
 - Spectator / physics
 - Family-friendly
 - Mobile-first
 - Short-session
+- Landscape
 
-### Target platform
-
-- Primary: iOS and Android
-- Development/testing: browser prototype first
-- Orientation: landscape
+Target platforms: iOS and Android. Development should remain browser-playable for rapid iteration and phone testing.
 
 ---
 
-## 2. Fundamental product principles
+## 2. Fundamental principles
 
-These principles should guide product and technical decisions.
+### 2.1 One persistent player marble
 
-### 2.1 The player's marble is persistent
+The player owns **one marble** rather than choosing from a roster before each race.
 
-The player owns **one marble**.
+The same marble appears throughout the product:
 
-The player does not choose a different marble before each tournament.
+- home screen
+- customization
+- every tournament
+- results
 
-The same marble should appear:
+The player can customize its appearance, but MVP gameplay attributes remain identical to the other marbles.
 
-- on the home screen
-- in customization
-- in every tournament
-- in results
-- anywhere else the player's marble is represented
+### 2.2 No direct race control
 
-This persistence is important for attachment and identity.
+During a course, the player does not steer, jump, brake, aim, activate abilities, or otherwise influence the marble.
 
-### 2.2 The player does not control the race
+### 2.3 Physics is the entertainment
 
-During the race, there is no steering, jumping, braking, aiming, ability activation, or other direct player control.
-
-The player watches the simulation and reacts emotionally to what happens.
-
-### 2.3 Physics is the core entertainment
-
-The game should feel physical rather than scripted.
-
-Important moments include:
+Prioritize:
 
 - collisions
 - overtakes
@@ -73,228 +61,198 @@ Important moments include:
 - shortcuts
 - near misses
 - falls
-- getting stuck and escaping
-- unexpected interactions with obstacles
+- obstacles interacting with marbles
 - close finishes
+- unexpected outcomes
 
-### 2.4 Courses are the main long-term content
+### 2.4 Courses are the main content
 
-Themes are useful, but courses are the actual gameplay content.
+Themes matter, but the physical interaction created by a course matters more than the visual theme.
 
-A good course should create interesting physical interactions rather than merely providing a visual reskin.
+### 2.5 Readability
 
-### 2.5 The game should remain readable
-
-The player must be able to identify their own marble during a chaotic race.
-
-The camera and visual treatment should make the marble's current state understandable without covering the screen with UI.
+The player must always be able to identify their marble without covering the race in UI.
 
 ---
 
-## 3. Core gameplay
+## 3. Tournament structure
 
-### 3.1 Tournament structure
-
-Every tournament consists of three elimination rounds:
+A tournament consists of **three courses / three elimination rounds**:
 
 ```text
-12 marbles
-    ↓
-Round 1: top 6 advance
-    ↓
-6 marbles
-    ↓
-Round 2: top 3 advance
-    ↓
-3 marbles
-    ↓
-Round 3: 1 winner
+Round 1
+12 marbles → top 6 survive
+        ↓
+Round 2
+6 marbles → top 3 survive
+        ↓
+Round 3
+3 marbles → 1 winner
 ```
 
-The player's persistent marble is always one of the competing marbles.
+The three rounds use **three different courses**. Each round selects a course randomly from the player's eligible/unlocked course pool.
 
-### 3.2 Round rules
+The player watches one course, then experiences a transition sequence that visually removes eliminated marbles and selects the next course.
 
-For each round:
+### Round result rules
 
-1. Spawn the required marbles at the start area.
-2. Run the physics simulation.
-3. Record finish order based on reaching the finish condition.
-4. Eliminate all marbles outside the advancing positions.
-5. If the player's marble is eliminated, the tournament ends.
-6. If the player's marble advances, start the next round.
-7. The tournament ends when one marble wins Round 3.
+- Round 1: first 6 finishers advance.
+- Round 2: first 3 finishers advance.
+- Round 3: first finisher wins the tournament.
+- If the player's marble is eliminated, the tournament ends.
 
-### 3.3 Finish and elimination
+A marble finishes by reaching the course finish condition.
 
-Initial rule:
+A marble that leaves the playable course is eliminated.
 
-- A marble finishes when it reaches the course's finish trigger.
-- A marble that leaves the playable course is eliminated.
-- A marble that becomes permanently stuck should be eliminated after a timeout.
-
-Exact timeout and edge-case handling are TBD and should be kept configurable.
-
-### 3.4 Race length
-
-Target race duration: approximately **30–40 seconds per round**.
-
-This is a target, not a hard requirement. Courses should be allowed to vary somewhat as long as the experience remains suitable for short mobile sessions.
-
-### 3.5 Player outcome
-
-The player can experience four meaningful states:
-
-- **Round 1 survival:** player's marble finishes in the top 6
-- **Round 2 survival:** player's marble finishes in the top 3
-- **Final round:** player's marble is one of the final 3
-- **Tournament victory:** player's marble finishes first
-
-The tournament ends immediately from the player's perspective when their marble is eliminated.
+A marble that becomes stuck requires a configurable timeout; exact timeout is TBD.
 
 ---
 
-## 4. Core gameplay loop
+## 4. Round transition experience
+
+This is a **core product feature**, not merely a loading screen.
+
+### 4.1 Purpose
+
+Between courses, the player should clearly feel:
+
+1. **Who survived?**
+2. **Who was eliminated?**
+3. **What course is next?**
+4. **The tournament is getting smaller and more intense.**
+
+The transition should create anticipation before the next course starts.
+
+### 4.2 Participant reveal / elimination
+
+Before a course starts, show the current tournament field clearly.
+
+For Round 1, this is 12 marbles.
+
+After each course, the same field is shown again during the transition, with eliminated marbles visually removed/disabled and survivors remaining prominent.
+
+The visual language should communicate elimination without copying Fall Guys' exact presentation, layout, art direction, or UI style.
+
+Possible visual treatment:
+
+- eliminated marble fades, drops away, gets greyed out, or otherwise visually leaves the field
+- survivors remain active
+- player's marble is clearly identifiable
+- the field count updates prominently
+
+The exact animation is TBD.
+
+### 4.3 Next-course roulette
+
+While the elimination sequence is playing, a course selector simultaneously cycles through eligible courses like a fast carousel / roulette.
+
+The selector should:
+
+- show multiple course candidates
+- visibly tick/cycle through them
+- slow down and land on the selected course
+- clearly reveal the winning course
+- feel like a deliberate game moment rather than a loading indicator
+
+This is inspired by the **mechanic** of Fall Guys' course carousel, but the visual execution must be original to Marble Jumble.
+
+### 4.4 Suggested combined transition flow
 
 ```text
+COURSE FINISH
+      ↓
+Show current tournament field
+      ↓
+Course roulette begins
+      ↓
+Eliminated marbles visually leave / deactivate
+      ↓
+Field count updates
+      ↓
+Course roulette slows
+      ↓
+Next course revealed
+      ↓
+Short anticipation beat
+      ↓
+NEXT COURSE
+```
+
+The elimination animation and course roulette should feel like one coherent transition sequence rather than two unrelated screens.
+
+Whether this is literally one screen or a closely connected two-state sequence is a UI implementation detail, but it should feel seamless to the player.
+
+### 4.5 Round 1 presentation
+
+Before the first course, show all 12 competing marbles.
+
+The player's marble must be clearly identifiable.
+
+Do not force the player to pick a marble.
+
+---
+
+## 5. Core gameplay loop
+
+```text
+Home
+  ↓
 Start tournament
-      ↓
-Select a random unlocked course
-      ↓
-12 marbles enter
-      ↓
-Watch Round 1
-      ↓
-Survive or get eliminated
-      ↓
-Watch Round 2 if alive
-      ↓
-Survive or get eliminated
-      ↓
-Watch Round 3 if alive
-      ↓
-Win / lose
-      ↓
-Earn rewards
-      ↓
-Customize marble / unlock content
-      ↓
+  ↓
+Show current field
+  ↓
+Select next course via roulette
+  ↓
+Watch course
+  ↓
+Determine finish order
+  ↓
+Eliminate non-survivors visually
+  ↓
+If player's marble eliminated → Results
+  ↓
+Otherwise select next course
+  ↓
+Repeat until Round 3 winner
+  ↓
+Rewards
+  ↓
+Customize / unlock
+  ↓
 Play again
 ```
 
-### Random course selection
+### Course selection
 
-For the MVP, a course should be randomly selected from the player's unlocked courses.
+Each round selects a course randomly from the player's unlocked/eligible course pool.
 
 The exact weighting system is TBD.
 
----
-
-## 5. Session design
-
-The game should be usable in very short sessions.
-
-A complete tournament should generally feel like a quick burst rather than a long commitment.
-
-Target:
-
-- one round: ~30–40 seconds
-- complete tournament: roughly 30–120 seconds depending on progression and result screens
-
-Avoid unnecessary loading, menu friction, or long transitions.
+The game should avoid repeating a course within the same tournament unless the content pool becomes too small; exact rule TBD.
 
 ---
 
-## 6. Player marble
+## 6. Course design
 
-### 6.1 Identity
+### Course duration
 
-The player has one persistent marble.
+Target: approximately **30–40 seconds per course**.
 
-It should have:
+A complete tournament therefore contains three short races plus transitions.
 
-- a stable internal ID
-- a current appearance configuration
-- a clear visual identity during races
+### Course design principle
 
-### 6.2 Customization
+A course should produce interesting physical events throughout the run rather than mostly straight rolling.
 
-Cosmetics are expected to evolve from simple to more expressive.
-
-Possible categories:
-
-- colours
-- patterns
-- materials
-- visual effects
-- decorative elements
-
-The exact system is intentionally not fully defined yet.
-
-### 6.3 Gameplay attributes
-
-For the MVP, the player's marble and AI marbles should have **the same physical attributes**.
-
-Do not implement gameplay advantages, stats, upgrades, special abilities, size differences, weight differences, bounce differences, speed differences, etc. unless explicitly added to the specification later.
-
-This keeps the MVP focused on the course and physics.
-
----
-
-## 7. Courses
-
-Courses should be treated as reusable data-driven content rather than hard-coded special cases.
-
-### 7.1 Course themes
-
-Initial ideas:
-
-- Canyon
-- Space
-- Factory
-- Ice / Frozen
-- Volcano
-- Jungle
-- Steampunk
-- Airplane / inside an airplane
-
-Themes are a content direction, not a requirement that every theme be implemented immediately.
-
-### 7.2 Example course mechanics
-
-**Canyon**
-- ramps
-- narrow bridges
-- falling rocks
-- split paths
-- jumps
-
-**Space**
-- low gravity
-- force fields
-- rotating or floating platforms
-- gaps
-
-**Factory**
-- conveyor belts
-- pistons
-- rotating mechanisms
-- moving platforms
-
-### 7.3 Course design principle
-
-Courses should create a sequence of interesting physical moments.
-
-A target 30–40 second course should not be a long straight section with little happening.
-
-A useful conceptual rhythm is:
+A useful conceptual rhythm:
 
 ```text
 Start / positioning
         ↓
 Early interaction
         ↓
-Major obstacle or route choice
+Major obstacle / route split
         ↓
 Chaos / collision section
         ↓
@@ -303,13 +261,30 @@ Late interaction
 Finish / final stretch
 ```
 
-This is a design guideline, not a rigid formula.
+This is a guideline, not a rigid formula.
 
-### 7.4 Course data
+### Course themes
 
-Courses should be represented as data so that new content can be created without modifying core gameplay code.
+Initial content directions:
 
-Conceptually:
+- Canyon
+- Space
+- Factory
+- Ice / Frozen
+- Volcano
+- Jungle
+- Steampunk
+- Inside an airplane
+
+Example mechanics:
+
+**Canyon:** ramps, narrow bridges, falling rocks, split paths, jumps  
+**Space:** low gravity, force fields, rotating/floating platforms, gaps  
+**Factory:** conveyor belts, pistons, rotating mechanisms, moving platforms
+
+### Course representation
+
+Courses should be data-driven:
 
 ```text
 Course
@@ -324,13 +299,41 @@ Course
 └── obstacles
 ```
 
-The exact format depends on the chosen engine.
+Adding a course should not require changing tournament logic.
+
+---
+
+## 7. Player marble and cosmetics
+
+### Identity
+
+The player has one persistent marble with:
+
+- stable internal ID
+- current cosmetic configuration
+- clear visual identity in races
+
+### Customization
+
+Potential cosmetic categories:
+
+- colours
+- patterns
+- materials
+- visual effects
+- decorative elements
+
+### Gameplay attributes
+
+For MVP, all marbles use the same physical attributes.
+
+Do not add speed, mass, size, bounce, special powers, or other gameplay advantages unless explicitly approved later.
 
 ---
 
 ## 8. Visual direction
 
-### 8.1 Overall direction
+### Overall
 
 - 2.5D physical marble tracks
 - stylised environments
@@ -338,37 +341,31 @@ The exact format depends on the chosen engine.
 - readable geometry
 - restrained materials
 - subtle lighting
-- physical rather than UI-heavy presentation
+- track and physics as visual heroes
 
-### 8.2 Avoid
+### Avoid
 
 - generic AI-looking artwork
 - photorealism
-- overly glossy mobile-game presentation
+- overly glossy mobile-game UI
 - excessive gradients
 - excessive bloom
 - fake glass UI
 - RPG-style interfaces
 - clutter
-- excessive particle effects
-- visual noise that makes the marble difficult to identify
+- excessive particles
+- visual noise that hides the player's marble
 
-### 8.3 Track is the visual hero
+### Camera
 
-The course and its physical interactions should dominate the visual experience.
+Exact camera/projection is TBD.
 
-The environment should support the simulation rather than distract from it.
+The eventual camera should:
 
-### 8.4 Camera
-
-Camera design is currently **TBD** and should not be over-engineered before gameplay is proven.
-
-It should eventually support:
-
-- clear visibility of the player's marble
-- enough look-ahead to understand upcoming obstacles
-- readable views of relevant groups of marbles
-- smooth transitions without excessive cinematic movement
+- keep the player's marble readable
+- provide enough look-ahead
+- show relevant groups of marbles when useful
+- avoid excessive cinematic movement
 
 ---
 
@@ -376,128 +373,118 @@ It should eventually support:
 
 ### Home
 
-Primary sections:
-
 - Play
 - Courses
 - Marble
 - Shop
 - Settings
 
-The player's marble should visibly exist in the home presentation, ideally moving/rolling over a track so the user can immediately see its current appearance.
+The player's marble should visibly exist in the home presentation, ideally rolling on a physical track so its customization is always visible.
+
+### Pre-course / transition
+
+- current field of marbles
+- player's marble clearly identifiable
+- elimination animation
+- remaining-count feedback
+- next-course roulette
+- selected-course reveal
 
 ### Gameplay
 
 - countdown
 - race
-- elimination / round transition
-- results
-
-Gameplay UI should be minimal.
-
-The current intended experience is to watch the simulation rather than monitor a large dashboard.
+- minimal race information
+- transition to elimination/course selection
 
 ### Results
 
-Results should clearly communicate:
+Show at minimum:
 
-- player's marble finishing position
-- whether it advanced
-- whether the tournament was won/lost
-- rewards earned
-- progression/unlock information where relevant
+- player's finishing position
+- whether the marble advanced / was eliminated
+- tournament victory or loss
+- rewards
+- relevant unlock information
 
-Exact presentation is TBD.
+Exact visual treatment is TBD.
 
 ---
 
 ## 10. Progression and economy
 
-### 10.1 Currency
+### Currency
 
-Initial currency:
+**Coins** are the initial common currency.
 
-**Coins** — common currency earned through playing matches.
-
-Coins can be used for:
+Coins are earned through matches and can be spent on:
 
 - cosmetic marble items
 - course unlocks
 
-Exact pricing and economy are TBD.
+Exact economy is TBD.
 
-### 10.2 No gameplay upgrades in MVP
+### MVP rule
 
-The MVP should not contain power progression that changes the marble's physics.
+No gameplay-stat upgrades.
 
-The initial progression model is intentionally cosmetic/content-focused.
-
-### 10.3 Unlocks
-
-Potential unlock categories:
-
-- additional courses
-- marble colours
-- patterns
-- materials
-- effects
-
-Exact unlock structure is TBD.
+Progression is focused on content and cosmetics.
 
 ---
 
 ## 11. Technical direction
 
-### 11.1 Platform strategy
+### Platform strategy
 
-The game must eventually run on:
+Primary: iOS + Android.  
+Development: browser-playable prototype wherever practical.
 
-- iOS
-- Android
+The development loop should be:
 
-During development, there should be a browser-playable prototype whenever technically practical.
+```text
+Agent → code → browser → phone test → iterate
+```
 
-The browser prototype is important because fast iteration and phone testing are priorities.
+rather than requiring an APK build for every tiny iteration.
 
-### 11.2 Technology stack
+### Technology stack
 
 **TBD.**
 
-The stack should be selected based on:
+Select the stack based on:
 
 - reliable physics
-- good mobile performance
+- mobile performance
+- browser support
+- 2.5D suitability
 - fast iteration
-- browser deployment/prototyping
-- suitability for 2.5D presentation
-- agentic AI development workflow
-- straightforward packaging for iOS and Android
+- agentic AI workflow
+- straightforward iOS/Android packaging
 
-Do not lock the stack in code until this decision is made.
+### Architecture
 
-### 11.3 Simulation architecture
-
-Keep the following concerns separated:
+Keep these concerns separated:
 
 ```text
 Game
 ├── Tournament
 │   ├── Round management
-│   └── Elimination / results
-│
+│   ├── Course selection
+│   └── Elimination/results
 ├── Simulation
 │   ├── Marble physics
 │   ├── Track physics
 │   └── Obstacles
-│
+├── Transition
+│   ├── Field presentation
+│   ├── Elimination animation
+│   └── Course roulette
 ├── Content
 │   ├── Courses
 │   └── Marble cosmetics
-│
 ├── Progression
 │   ├── Coins
 │   └── Unlocks
-│
 └── UI
     ├── Home
     ├── Courses
@@ -507,72 +494,52 @@ Game
     └── Settings
 ```
 
-The physics simulation should not directly own progression, shop logic, or menu state.
+Physics should not directly own progression or UI state.
 
-### 11.4 Deterministic simulation
+### Deterministic simulation
 
-A race should be reproducible from a known seed where practical.
-
-Conceptually:
+Prefer a seed-driven simulation where practical:
 
 ```text
 seed + course + starting configuration
         ↓
-reproducible race simulation
+reproducible simulation
 ```
 
-Benefits:
+This supports reproducible bugs, testing, future replays, daily challenges, and leaderboards.
 
-- reproducible bugs
-- automated testing
-- debugging
-- future replays
-- future daily challenges
-- future leaderboard possibilities
-
-The exact implementation depends on the physics engine and platform, but this requirement should influence the architecture from the beginning.
-
-### 11.5 Data-driven content
-
-Courses and cosmetic definitions should be data-driven.
-
-Adding a new course should ideally not require changing tournament code.
-
-Adding a new cosmetic should ideally not require changing race logic.
+The exact determinism guarantees depend on the selected engine.
 
 ---
 
 ## 12. Performance requirements
 
-The game is intended for mobile hardware and must remain responsive on a reasonable range of supported devices.
+Mobile is the primary target.
 
 Priorities:
 
 1. stable simulation
 2. stable frame rate
 3. responsive UI
-4. low memory usage
+4. reasonable memory use
 5. short loading times
 
-The exact device baseline and frame-rate target are TBD.
-
-Do not optimise prematurely, but avoid architecture that obviously assumes desktop-class resources.
+Exact device baseline and frame-rate target are TBD.
 
 ---
 
-## 13. MVP scope
+## 13. MVP roadmap
 
 ### Phase 0 — Physics prototype
 
-**Goal:** Determine whether watching a marble roll through a course is visually satisfying.
+**Goal:** Prove that watching one marble run a course is satisfying.
 
-Implement only:
+Implement:
 
 - one marble
 - one 2.5D course
-- realistic physics
-- camera following the marble
-- mobile-friendly input/UI shell as necessary to launch/restart
+- physics
+- camera
 - start
 - finish
 - fall/off-course detection
@@ -580,9 +547,9 @@ Implement only:
 - browser-playable build
 - phone testing
 
-Do **not** implement yet:
+Exclude:
 
-- 12-marble tournament
+- tournament
 - progression
 - shop
 - ads
@@ -590,34 +557,32 @@ Do **not** implement yet:
 - accounts
 - missions
 - daily challenges
-- multiple complex systems
 
-### Phase 0 success criterion
-
-> Watching the marble complete a course should feel satisfying enough that the player wants to run it again.
+**Success criterion:** the run feels satisfying enough to restart immediately.
 
 ### Phase 1 — Playable MVP
 
-**Goal:** Determine whether the core spectator tournament is fun.
+**Goal:** Prove that the spectator tournament is fun.
 
 Implement:
 
 - persistent player marble
 - 12-marble simulation
-- 3 elimination rounds
-- 12 → 6 → 3 → 1 progression
+- three courses / three rounds
+- 12 → 6 → 3 → 1 elimination
 - player elimination
 - tournament victory
-- race results
+- pre-course field presentation
+- visual elimination transition
+- next-course roulette
+- results
 - home screen
-- basic course selection/unlock flow
 - 3–5 courses
-- 3–5 basic cosmetic marble options
+- 3–5 basic cosmetics
 - basic coins
-- browser testing
-- mobile testing
+- browser + mobile testing
 
-Still exclude:
+Exclude:
 
 - advertising
 - IAP
@@ -626,264 +591,215 @@ Still exclude:
 - missions
 - seasons
 - multiplayer
-- user-generated maps
-- procedural course generation
+- user-generated courses
+- procedural generation
 - marble abilities
 - gameplay-stat upgrades
 
 ### Phase 2 — Retention
 
-Possible features:
+Possible:
 
 - more courses
 - more cosmetics
 - daily challenge
 - missions
-- improved rewards
-- better progression
-
-Only add features that support the core spectator loop.
+- improved rewards/progression
 
 ### Phase 3 — Monetisation
 
-Possible features:
+Possible:
 
 - shop
 - cosmetic purchases
 - rewarded ads
 - IAP
 
-Monetisation must not undermine the casual/family-friendly experience.
-
 ### Phase 4 — Launch
 
-Possible launch requirements:
+Possible:
 
 - analytics
 - crash reporting
 - store listing
-- App Store release
-- Google Play release
+- App Store
+- Google Play
 
 ---
 
 ## 14. Non-goals
 
-Unless explicitly added later, do not build:
+Do not build without explicit approval:
 
 - direct race controls
 - multiplayer races
-- competitive online ranking
+- online ranking
 - online accounts
 - user-generated courses
-- procedural course generation
-- marble gameplay abilities
+- procedural courses
+- marble abilities
 - marble stat progression
 - pay-to-win mechanics
 - seasons / battle passes
 - complex social systems
-- elaborate RPG progression
+- RPG-style progression
 - elaborate inventory systems
-
-Ideas that are not in the current scope belong in the parking lot below.
 
 ---
 
-## 15. Testing and acceptance criteria
+## 15. Acceptance criteria
 
-Features should be implemented with testable acceptance criteria rather than relying on visual inspection alone.
+### Tournament
 
-### Example: tournament elimination
+Given 12 active marbles, Round 1 produces exactly 6 survivors.
 
-Given 12 active marbles, after Round 1 exactly 6 must advance.
+Given 6 active marbles, Round 2 produces exactly 3 survivors.
 
-Given 6 active marbles, after Round 2 exactly 3 must advance.
+Given 3 active marbles, Round 3 produces exactly 1 winner.
 
-Given 3 active marbles, after Round 3 exactly 1 must be declared the winner.
+### Player marble
 
-### Example: player elimination
+The same player marble identity and cosmetic configuration persists across tournaments.
 
-Given the player's marble does not finish within the advancing positions, the tournament must end for that player.
+### Course transitions
 
-### Example: player identity
+After a course finishes:
 
-The player's marble must remain identifiable throughout the race and must use the same saved cosmetic configuration between races.
+1. The current field is presented.
+2. Eliminated marbles are visually deactivated/removed.
+3. The remaining count is clearly communicated.
+4. A roulette cycles through eligible next courses.
+5. The roulette settles on the selected next course.
+6. The next course starts with the surviving field.
 
-### Example: restart
+### Restart
 
-Restarting a race must return the game to a clean initial state without retaining physics state from the previous run.
+Restarting a race or tournament produces a clean initial state with no leaked physics state.
 
-### Example: deterministic seed
+### Tests
 
-Given the same deterministic seed, course, and starting configuration, the simulation should produce the same race outcome whenever deterministic simulation is supported by the selected engine.
-
-Agents should add tests whenever practical for gameplay rules and state transitions.
+Game-state transitions and tournament rules should have automated tests where practical.
 
 ---
 
 ## 16. Agent development rules
 
-This repository is intended to be developed heavily with agentic AI.
+Agents must:
 
-Agents should follow these rules:
+- read `PROJECT.md` before major changes
+- keep MVP scope narrow
+- never silently implement parking-lot ideas
+- separate simulation, game state, transition UI, progression, and presentation
+- keep courses data-driven
+- make browser testing easy
+- make changes in small, testable increments
+- add tests for state transitions where practical
+- avoid large abstractions before they are justified
 
-### Product discipline
-
-- Read `PROJECT.md` before making architectural or gameplay changes.
-- Do not invent new gameplay systems because they seem useful.
-- Prefer the smallest implementation that proves the current hypothesis.
-- Do not implement parking-lot ideas without explicit approval.
-- Keep MVP scope narrow.
-
-### Architecture discipline
-
-- Keep gameplay rules separate from presentation.
-- Keep physics simulation separate from progression/economy.
-- Prefer data-driven course/content definitions.
-- Avoid hard-coding individual courses into tournament logic.
-- Avoid unnecessary dependencies.
-- Prefer simple systems that can later be extended.
-
-### Iteration discipline
-
-- Keep browser testing easy.
-- Make changes in small, testable increments.
-- Preserve the ability to restart a race quickly.
-- When changing physics, verify behaviour on an actual phone as soon as practical.
-
-### Visual discipline
-
-- Match the stated 2.5D physical visual direction.
-- Do not introduce generic AI-generated mobile-game UI patterns.
-- Avoid unnecessary visual complexity.
-- Prioritise marble readability and course readability.
-
-### Code quality
-
-- Keep public APIs and data structures understandable.
-- Add tests for deterministic/game-state logic where practical.
-- Avoid large abstractions before they are justified.
-- Prefer configuration/data over code duplication.
+For product decisions not covered here, stop and ask rather than inventing a rule.
 
 ---
 
 ## 17. Open decisions — do not silently guess
 
-These are intentionally unresolved. They should be decided before the relevant system becomes difficult to change.
-
-### Critical
-
-1. **Technology stack:** Which engine/framework should be used?
-2. **Camera:** What exact 2.5D camera/projection should the game use?
-3. **Physics:** What does “realistic” mean for this game? Real-world gravity and friction, or stylised but believable physics?
-4. **Race continuity between rounds:** Is Round 2 a continuation of the same course/run, or does the surviving marbles start a new section/re-run?
-5. **Course structure:** Are all three rounds played on the same course, or does each round use a different course/segment?
-6. **Outcome fairness:** Should all marbles have exactly equal physics, or should the simulation contain controlled variability to make the player's marble slightly more/less likely to survive?
-7. **Player marble visibility:** How should the player's marble be identified without making the race UI cluttered?
-8. **Course failure:** What exactly happens when a marble gets stuck?
-9. **Reward model:** How many coins are earned for advancing, losing, and winning?
-10. **Unlock model:** Are courses unlocked permanently, sequentially, randomly, or through another system?
-
-### Important but later
-
-11. **Camera behaviour during collisions:** Does the camera follow only the player marble or zoom/shift to show important groups?
-12. **Course difficulty:** How is difficulty communicated to the player?
-13. **Race variability:** How much randomness is desirable between runs of the same course?
-14. **Physics determinism:** Is exact deterministic replay a hard requirement or only a desirable property?
-15. **Save system:** Local-only initially, or account/cloud save later?
-16. **Analytics:** Which player behaviours should be measured once Phase 1 is validated?
-17. **Monetisation timing:** At what point should ads or IAP be introduced, if at all?
-18. **Age positioning:** Is the target explicitly children/families, or more broadly casual players of all ages?
+1. Technology stack / engine
+2. Exact 2.5D camera/projection
+3. Physics model: realistic vs stylised-believable
+4. Exact finish/stuck timeout behaviour
+5. Course weighting and duplicate-course rules
+6. Exact visual language for elimination
+7. Exact course-roulette presentation and pacing
+8. How strongly the player's marble is highlighted during races
+9. Reward amounts and unlock prices
+10. Course unlock structure
+11. Target device baseline and frame-rate target
+12. Save model
+13. Exact difficulty / desired survival probabilities
+14. Exact age positioning
 
 ---
 
-## 18. Questions to grill the designer on
-
-These are deliberately blunt. Resolve them before asking an agent to build substantial systems.
+## 18. Designer questions — grill before overbuilding
 
 ### Core fun
 
-1. **Why will someone watch a marble race for the fifth time?**
-2. **What is the emotional payoff when your marble survives a round?**
-3. **What makes Marble Jumble meaningfully different from watching a generic marble run?**
-4. **How much of the fun comes from the course versus the tournament structure?**
-5. **What makes losing feel acceptable rather than frustrating?**
+1. Why will someone watch the fifth race?
+2. What is the emotional payoff of surviving a round?
+3. What makes this more compelling than a generic marble run video?
+4. What makes losing feel acceptable?
 
-### Player ownership
+### The player's marble
 
-6. **If the player's marble has no gameplay advantages, what exactly makes it feel like “their” marble?**
-7. **How quickly can a new player customise or personalise it?**
-8. **Would the player care if the marble they own is eliminated in Round 1? Why?**
+5. If all marbles have identical physics, why does the player's marble feel meaningfully theirs?
+6. How much customization is enough to create attachment?
+7. How quickly should a new player get their first cosmetic choice?
 
-### Replayability
+### Courses and replayability
 
-9. **What changes between two runs of the same course?**
-10. **Should players be able to learn courses, or should outcomes always feel unpredictable?**
-11. **How much randomness is fun before it feels arbitrary or rigged?**
+8. What changes between repeated runs of the same course?
+9. Should players be able to learn courses or should outcomes remain highly unpredictable?
+10. How much randomness feels exciting before it feels arbitrary?
+11. How many genuinely different courses are needed before repetition becomes a problem?
 
 ### Progression
 
-12. **What does the player work toward after the novelty of the first few races wears off?**
-13. **Are course unlocks actually exciting enough to drive replay, or are cosmetics doing most of that work?**
-14. **What is the first meaningful reward a new player receives?**
-15. **What should a player have unlocked after roughly 30 minutes?**
+12. What is the first meaningful reward?
+13. What should a player have unlocked after ~30 minutes?
+14. Are course unlocks exciting enough on their own, or are cosmetics the main progression?
 
 ### Difficulty
 
-16. **How often should a typical player reach Round 2?**
-17. **How often should they reach the final?**
-18. **How often should they win?**
-19. **Should those probabilities be controlled explicitly, or emerge naturally from physics?**
+15. What share of players should typically reach Round 2?
+16. What share should reach Round 3?
+17. What share should win?
+18. Should these probabilities emerge naturally from physics or be deliberately tuned?
 
-### Content
+### Transition sequence
 
-20. **How many genuinely different courses are needed before the game stops feeling repetitive?**
-21. **What makes a course “good enough” to ship?**
-22. **Can a course be fun with simple geometry, or does it require elaborate art and animation?**
+19. How long should the elimination + course roulette transition last?
+20. Should the player see the full field from a fixed viewpoint or get a more tactile 2.5D presentation?
+21. Should the selected course be completely random, or should the player have some control over the pool?
+22. What should the transition feel like emotionally: suspenseful, playful, dramatic, calm?
 
-### Product scope
+### Scope
 
-23. **What is the smallest version you would be genuinely excited to put on someone else's phone?**
-24. **Which feature in the current roadmap are you most tempted to build too early?**
-25. **What would make you abandon the project rather than keep polishing it?**
+23. What is the smallest version you would genuinely want another person to play?
+24. Which current roadmap idea is most tempting to build too early?
+25. What evidence would make you stop the project instead of continuing to polish it?
 
 ---
 
 ## 19. Parking lot
 
-Ideas that may be explored later, but are **not part of the current MVP**:
-
 - online leaderboards
 - achievements
 - ghost marbles
 - seasonal themes
-- tournaments beyond the standard 12 → 6 → 3 → 1 structure
+- additional tournament modes
 - daily courses / daily challenge
 - user-made courses
 - generated/procedural courses
 - different marble physical properties
 - marble special abilities
 - additional game modes
-- more sophisticated marble progression
+- more sophisticated progression
 
-Do not implement these without explicitly moving them into an active phase.
+These are not active requirements.
 
 ---
 
 ## 20. First implementation target
 
-The first development milestone is not “build Marble Jumble.”
+Do not start by building the whole game.
 
-It is:
+Build:
 
-> **Build one satisfying marble run that can be played repeatedly in a phone browser.**
+> **One satisfying marble run playable repeatedly in a phone browser.**
 
-Everything else should wait until that experience is good.
-
-The immediate prototype should answer three questions:
+The first prototype must answer:
 
 1. Does the marble movement feel good?
-2. Does the 2.5D presentation look good on a phone?
+2. Does the 2.5D presentation work on a phone?
 3. Is watching the run enjoyable enough to restart immediately?
 
-If the answer to any of these is no, do not compensate by adding progression, cosmetics, shops, missions, or other systems. Fix the core experience first.
+Only after those answers are positive should the 12-marble tournament and transition system be built.
