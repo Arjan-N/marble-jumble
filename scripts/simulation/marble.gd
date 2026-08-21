@@ -15,17 +15,28 @@ enum State {
 }
 
 var marble_id: int = -1
+## What the HUD calls this marble. Cosmetic, like the colour — it never reaches
+## the physics, and two marbles with different names are the same marble as far
+## as the simulation is concerned (PROJECT.md section 7).
+var marble_name: String = ""
 var is_player: bool = false
 var state: State = State.WAITING
+## The colour this marble was built with, kept so the HUD can draw a swatch that
+## matches what is on the track without reaching into the mesh material.
+var colour: Color = Color.WHITE
 
 var _tuning: MarbleTuning
 
 
-static func create(id: int, tuning: MarbleTuning, colour: Color, player: bool) -> Marble:
+static func create(
+	id: int, tuning: MarbleTuning, colour: Color, player: bool, marble_name := ""
+) -> Marble:
 	var marble := Marble.new()
 	marble.name = "Marble%02d" % id
 	marble.marble_id = id
+	marble.marble_name = marble_name if marble_name != "" else "Marble %d" % id
 	marble.is_player = player
+	marble.colour = colour
 	marble._tuning = tuning
 	marble._build(colour)
 	return marble

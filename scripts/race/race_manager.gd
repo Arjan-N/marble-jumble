@@ -14,6 +14,29 @@ const MARBLE_COUNT := 12
 const PLAYER_MARBLE_INDEX_UNSET := -1
 const PLAYER_COLOUR := Color(0.25, 0.78, 1.0)
 
+## Opponent names, drawn at random each race. Cosmetic — nothing here reaches the
+## physics, and opponents remain identical to the player (PROJECT.md section 7).
+##
+## They exist because standings need something to be *about*. A row reading
+## "P4" is a number; a row reading "Bramble" is somebody you can be annoyed at.
+## The list is longer than the field so the same eleven do not turn up every
+## race, and every name is short enough to sit in a portrait HUD without
+## wrapping. Family-friendly, per the positioning in section 1.
+const OPPONENT_NAMES := [
+	"Pebble", "Nimbus", "Comet", "Biscuit", "Marlow", "Tuck",
+	"Juno", "Basil", "Otto", "Wren", "Fig", "Sable",
+	"Pip", "Clover", "Rook", "Hazel", "Mango", "Dot",
+]
+
+## How many places either side of the cut count as "close enough to care".
+const CUT_ATTENTION := 2
+
+## The player's marble. `PROJECT.md` section 2.1 wants one persistent, named,
+## customisable marble; naming it is Phase 1's job, along with the rest of
+## customisation. Until then it says what it is, which is the one thing the
+## player never has to look up.
+const PLAYER_NAME := "You"
+
 ## Which course the prototype runs. `SlopeCourse` is a plain straight test track
 ## deliberately too simple to be the cause of anything; `CourseBuilder` is the
 ## Canyon, which currently stalls its field around ratio 0.66. Swap this line to
@@ -46,6 +69,9 @@ const STANDINGS_INTERVAL := 0.1
 
 var _standings: Array[Marble] = []
 var _standings_age: float = 0.0
+## Distance along the course per marble, cached from the last ranking so gaps can
+## be shown without repeating the closest-point searches.
+var _progress: Dictionary = {}
 
 
 func _ready() -> void:
@@ -162,10 +188,18 @@ func _spawn_field() -> void:
 	# marble's own look, not from a fixed, learnable position.
 	var player_index := _rng.randi_range(0, MARBLE_COUNT - 1)
 
+	var names := OPPONENT_NAMES.duplicate()
+	names.shuffle()
+	var next_name := 0
+
 	for i in MARBLE_COUNT:
 		var is_player := i == player_index
 		var colour := PLAYER_COLOUR if is_player else _opponent_colour(i)
-		var marble := Marble.create(i, _tuning, colour, is_player)
+		var marble_name := PLAYER_NAME
+		if not is_player:
+			marble_name = names[next_name]
+			next_name += 1
+		var marble := Marble.create(i, _tuning, colour, is_player, marble_name)
 
 		add_child(marble)
 		marble.reset_to(spawns[i])
@@ -230,6 +264,7 @@ func _rank_field() -> void:
 	var progress := {}
 	for marble in _marbles:
 		progress[marble] = _course_offset(marble)
+	_progress = progress
 
 	var running: Array[Marble] = []
 	var fallen: Array[Marble] = []
@@ -250,6 +285,89 @@ func _rank_field() -> void:
 	_standings.append_array(_finish_order)
 	_standings.append_array(running)
 	_standings.append_array(fallen)
+
+
+## Four rows, not twelve: the leader, and the player with whoever is immediately
+## either side of them.
+##
+## The full field was the obvious thing to show and it was too much — a quarter
+## of a portrait screen of text next to a race nobody was looking at any more,
+## against section 2.5's ask that the UI stay out of the way. These four are the
+## ones that carry information: who is winning, and the two marbles whose
+## positions you can actually change places with in the next few seconds. Rows
+## eight through eleven are just a list.
+##
+## A gap in the numbering is drawn as an elision rather than closed up, so P2 and
+## P7 never look adjacent.
+func _standings_rows() -> Array:
+	if _standings.is_empty():
+		return []
+
+	# Zero-based index of the last marble that survives the round. PROJECT.md
+	# section 3: twelve start, the top six go through.
+	var cut_index := MARBLE_COUNT / 2 - 1
+
+	var wanted := {0: true}
+	var player_index := _standings.find(_player)
+
+	# The cut line is only drawn when the player is near enough for it to be the
+	# question they are asking. Leading comfortably, it is noise; scrapping over
+	# sixth, it is the only thing on screen that matters. Showing it always would
+	# put a permanent line through the middle of a four-row panel.
+	var near_cut := (
+		player_index >= 0
+		and cut_index < _standings.size()
+		and absi(player_index - cut_index) <= CUT_ATTENTION
+	)
+	if near_cut:
+		wanted[cut_index] = true
+	if player_index >= 0:
+		for index in [player_index - 1, player_index, player_index + 1]:
+			if index >= 0 and index < _standings.size():
+				wanted[index] = true
+
+	var indices := wanted.keys()
+	indices.sort()
+
+	var rows := []
+	var previous := -1
+	for index: int in indices:
+		if previous >= 0 and index > previous + 1:
+			rows.append({"elided": true})
+
+		var marble: Marble = _standings[index]
+		rows.append({
+			"colour": marble.colour,
+			"name": "%d %s" % [index + 1, marble.marble_name],
+			"trailing": _gap_text(marble, index),
+			"is_player": marble.is_player,
+		})
+		previous = index
+
+		if near_cut and index == cut_index:
+			rows.append({"cut": true})
+
+	return rows
+
+
+## What sits after the name: how far behind the leader this marble is, or why it
+## is not racing any more. Metres rather than seconds because a marble that is
+## stopped has no meaningful time gap, and a marble in mid-air has a misleading
+## one.
+func _gap_text(marble: Marble, index: int) -> String:
+	match marble.state:
+		Marble.State.ELIMINATED:
+			return "out"
+		Marble.State.FINISHED:
+			return "fin"
+
+	if index == 0 or _standings.is_empty():
+		return ""
+
+	var gap: float = _progress.get(_standings[0], 0.0) - _progress.get(marble, 0.0)
+	if gap < 1.0:
+		return ""
+	return "%dm" % roundi(gap)
 
 
 func _course_offset(marble: Marble) -> float:
@@ -303,17 +421,17 @@ func _announce_fall(marble: Marble) -> void:
 	if _hud == null or not is_instance_valid(_hud):
 		return
 
+	var left := 0
+	for other in _marbles:
+		if other.state == Marble.State.RACING or other.state == Marble.State.FINISHED:
+			left += 1
+
 	if marble.is_player:
 		_hud.announce("You fell", PLAYER_COLOUR)
 	else:
-		# Named by colour, not index: the player has no way to know that the
-		# orange one is marble 07, and a number they cannot map onto anything on
-		# screen is noise. Survivor count is the part that matters to them.
-		var left := 0
-		for other in _marbles:
-			if other.state == Marble.State.RACING or other.state == Marble.State.FINISHED:
-				left += 1
-		_hud.announce("A marble is out — %d left" % left, Color(0.95, 0.72, 0.45))
+		# By name, which the standings column is also showing — so the row that
+		# just went grey and the line that just appeared refer to each other.
+		_hud.announce("%s is out — %d left" % [marble.marble_name, left], marble.colour)
 
 
 func _check_for_completion() -> void:
@@ -368,6 +486,8 @@ func _setup_environment() -> void:
 
 
 func _update_hud() -> void:
+	_hud.show_standings(_standings_rows())
+
 	match _phase:
 		Phase.SETTLING:
 			_hud.show_text(
@@ -418,9 +538,9 @@ func _live_position() -> String:
 	if place <= 0:
 		return "racing"
 
-	var cut := MARBLE_COUNT / 2
-	var marker := "" if place <= cut else "   below the cut"
-	return "P%d of %d%s" % [place, MARBLE_COUNT, marker]
+	# Just the place. Whether that is above or below the cut is the standings
+	# column's job, and saying it in two places at once is how a HUD gets busy.
+	return "P%d of %d" % [place, MARBLE_COUNT]
 
 
 func _player_status() -> String:

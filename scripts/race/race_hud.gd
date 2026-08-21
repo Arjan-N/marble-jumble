@@ -22,8 +22,15 @@ const NOTICE_SECONDS := 2.6
 ## disappearing between frames.
 const NOTICE_FADE := 0.7
 
+## Rows in the standings column, top right. Colour is how a marble is named —
+## `DECISIONS.md` rules out arrows and oversized markers, and a number the player
+## cannot map onto anything on screen is worse than nothing, so each row carries
+## the marble's own colour as a dot.
+const STANDINGS_FONT := 19
+
 var _status: Label
 var _notice: Label
+var _standings: RichTextLabel
 var _notice_left: float = 0.0
 
 
@@ -38,6 +45,60 @@ func _build() -> void:
 	_status = _make_label(Vector2(24, 20), 22)
 	_notice = _make_label(Vector2(24, 96), 20)
 	_notice.modulate.a = 0.0
+	_build_standings()
+
+
+## Anchored to the right edge rather than positioned, because the design space is
+## 720x1280 (see project.godot) while the window is 450x800, and only the anchor
+## survives that.
+func _build_standings() -> void:
+	_standings = RichTextLabel.new()
+	_standings.bbcode_enabled = true
+	_standings.scroll_active = false
+	_standings.fit_content = true
+	_standings.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_standings.anchor_left = 1.0
+	_standings.anchor_right = 1.0
+	_standings.offset_left = -290
+	_standings.offset_right = -20
+	_standings.offset_top = 18
+	_standings.offset_bottom = 640
+	_standings.add_theme_font_size_override("normal_font_size", STANDINGS_FONT)
+	_standings.add_theme_font_size_override("bold_font_size", STANDINGS_FONT)
+	_standings.add_theme_color_override("font_outline_color", Color.BLACK)
+	_standings.add_theme_constant_override("outline_size", 5)
+	add_child(_standings)
+
+
+## `rows` is what the race decided should be on screen, already ordered and
+## already trimmed. The HUD does not know what a cut line is or which marble the
+## player owns beyond what each row tells it.
+func show_standings(rows: Array) -> void:
+	var out := PackedStringArray()
+	out.append("[right]")
+
+	for row: Dictionary in rows:
+		if row.get("elided", false):
+			out.append("[color=#7d8595]···[/color]")
+			continue
+
+		# The elimination line. Drawn as a rule rather than a labelled row so it
+		# reads as a boundary between the marbles above and below it, which is
+		# what it is — everything above survives the round.
+		if row.get("cut", false):
+			out.append("[color=#ff9d4d]───── cut ─────[/color]")
+			continue
+
+		var colour: Color = row["colour"]
+		var line := "[color=#%s]●[/color]  %s  [color=#c8cede]%s[/color]" % [
+			colour.to_html(false), row["name"], row["trailing"]
+		]
+		if row.get("is_player", false):
+			line = "[b]%s[/b]" % line
+		out.append(line)
+
+	out.append("[/right]")
+	_standings.text = "\n".join(out)
 
 
 func _make_label(at: Vector2, size: int) -> Label:
