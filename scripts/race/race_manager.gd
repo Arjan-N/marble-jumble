@@ -38,6 +38,15 @@ var _phase: Phase = Phase.SETTLING
 var _race_time: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
+## How often the field is re-ranked. Position is read by a human watching a race,
+## not by anything that needs to be correct between frames, and re-ranking every
+## physics tick means twelve closest-point searches against a baked curve sixty
+## times a second to move a number that changes a handful of times a race.
+const STANDINGS_INTERVAL := 0.1
+
+var _standings: Array[Marble] = []
+var _standings_age: float = 0.0
+
 
 func _ready() -> void:
 	_tuning = MarbleTuning.new()
@@ -65,6 +74,11 @@ func _physics_process(delta: float) -> void:
 	if _phase == Phase.RACING:
 		_race_time += delta
 		_check_for_falls()
+
+	_standings_age -= delta
+	if _standings_age <= 0.0:
+		_standings_age = STANDINGS_INTERVAL
+		_rank_field()
 
 	if DEBUG_TRACE:
 		_trace_accumulator += delta
@@ -132,7 +146,11 @@ func _restart() -> void:
 
 	_marbles.clear()
 	_finish_order.clear()
+	_standings.clear()
 	_player = null
+
+	if _hud != null and is_instance_valid(_hud):
+		_hud.clear_notice()
 
 	_start_race()
 
@@ -196,6 +214,58 @@ func _on_barrier_opened() -> void:
 		marble.sleeping = false
 
 
+# --- Standings ----------------------------------------------------------------
+
+
+## Orders the whole field, best first: marbles that have finished (in the order
+## they did), then everyone still running by how far down the course they are,
+## then anyone who fell.
+##
+## Distance is measured along the course centreline rather than by world
+## position, so this does not assume a course runs in any particular direction —
+## `SlopeCourse` happens to run down -Z, the Canyon does not stay straight, and
+## a race that only ranks correctly on straight courses would be a trap for
+## whoever writes the third one.
+func _rank_field() -> void:
+	var progress := {}
+	for marble in _marbles:
+		progress[marble] = _course_offset(marble)
+
+	var running: Array[Marble] = []
+	var fallen: Array[Marble] = []
+	for marble in _marbles:
+		match marble.state:
+			Marble.State.FINISHED:
+				continue ## Already ordered, in _finish_order.
+			Marble.State.ELIMINATED:
+				fallen.append(marble)
+			_:
+				running.append(marble)
+
+	running.sort_custom(func(a: Marble, b: Marble) -> bool:
+		return progress[a] > progress[b]
+	)
+
+	_standings = []
+	_standings.append_array(_finish_order)
+	_standings.append_array(running)
+	_standings.append_array(fallen)
+
+
+func _course_offset(marble: Marble) -> float:
+	if _course == null or not is_instance_valid(_course) or _course.curve == null:
+		return 0.0
+	return _course.curve.get_closest_offset(marble.global_position)
+
+
+## One-based, or 0 when the player is gone. Reads off the cached ranking rather
+## than recomputing, so calling it every frame from the HUD is free.
+func _player_place() -> int:
+	if _player == null or not is_instance_valid(_player):
+		return 0
+	return _standings.find(_player) + 1
+
+
 # --- Outcomes -----------------------------------------------------------------
 
 
@@ -216,8 +286,34 @@ func _check_for_falls() -> void:
 			marble.state = Marble.State.ELIMINATED
 			marble.visible = false
 			marble.freeze = true
+			_announce_fall(marble)
 
 	_check_for_completion()
+
+
+## A fall used to be a silent deletion: `visible = false` and the marble was
+## simply never mentioned again. PROJECT.md section 2.3 lists falls as one of the
+## things the physics is supposed to be entertaining *with*, and the most
+## dramatic event on the course was producing no moment at all.
+##
+## The marble is already visibly falling by the time this runs — it has to clear
+## the threshold, which is 20m below the finish — so this is the caption on
+## something the viewer has just watched, not news.
+func _announce_fall(marble: Marble) -> void:
+	if _hud == null or not is_instance_valid(_hud):
+		return
+
+	if marble.is_player:
+		_hud.announce("You fell", PLAYER_COLOUR)
+	else:
+		# Named by colour, not index: the player has no way to know that the
+		# orange one is marble 07, and a number they cannot map onto anything on
+		# screen is noise. Survivor count is the part that matters to them.
+		var left := 0
+		for other in _marbles:
+			if other.state == Marble.State.RACING or other.state == Marble.State.FINISHED:
+				left += 1
+		_hud.announce("A marble is out — %d left" % left, Color(0.95, 0.72, 0.45))
 
 
 func _check_for_completion() -> void:
@@ -281,7 +377,7 @@ func _update_hud() -> void:
 			)
 		Phase.RACING:
 			_hud.show_text(
-				"%.1fs    %s%s" % [_race_time, _player_status(), _camera_debug()]
+				"%.1fs    %s%s" % [_race_time, _live_position(), _camera_debug()]
 			)
 		Phase.COMPLETE:
 			_hud.show_text(
@@ -298,6 +394,33 @@ func _camera_debug() -> String:
 	if _camera == null or not is_instance_valid(_camera):
 		return ""
 	return "\ncam: %s  (C)" % _camera.mode_name()
+
+
+## Where the player is *right now*, which is the number the whole spectator
+## premise rests on and which the HUD did not show until this existed: the race
+## reported "racing" for twenty-eight seconds and then a finishing place, so
+## there was no way to care about the middle.
+##
+## The cut line is called out because that is what the tournament will eliminate
+## on (PROJECT.md section 3, top half survive), and being 6th or 7th is the only
+## distinction on screen that will ever have stakes.
+func _live_position() -> String:
+	if _player == null or not is_instance_valid(_player):
+		return ""
+
+	match _player.state:
+		Marble.State.ELIMINATED:
+			return "out"
+		Marble.State.FINISHED:
+			return "finished %d/%d" % [_finish_order.find(_player) + 1, MARBLE_COUNT]
+
+	var place := _player_place()
+	if place <= 0:
+		return "racing"
+
+	var cut := MARBLE_COUNT / 2
+	var marker := "" if place <= cut else "   below the cut"
+	return "P%d of %d%s" % [place, MARBLE_COUNT, marker]
 
 
 func _player_status() -> String:

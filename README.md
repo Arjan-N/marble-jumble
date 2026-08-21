@@ -77,10 +77,24 @@ authored meshes will replace.
 
 ## State of the prototype
 
-The course is generated from primitives along a centreline, not modelled. It
-hits the required rhythm — downhill opening, wide rolling section, S-curve,
-funnel, split/merge, small uphill, jump, rotating bumper, final stretch — but
-it is placeholder geometry standing in for a real Canyon.
+Two courses exist and `race_manager.gd` picks one by a single `const`.
+
+`SlopeCourse` is the one it runs. Straight in plan with a shaped vertical
+profile (5°–16°), it carries pillars, a funnel, a split/merge, a staggered jump,
+two bumpers and a final funnel. It is not the Canyon and is not trying to be —
+staying straight is what keeps it a clean camera test while
+[`docs/CAMERA_SPIKE.md`](docs/CAMERA_SPIKE.md) is open, and everything on
+`PROJECT.md` §2.3's list can be built without ever turning.
+
+`CourseBuilder` is the Canyon the phase spec actually asks for — curvature,
+banking, a swept ribbon — and it still stalls its field at the split/merge.
+Phase 0 criteria 5 and 6 are about the Canyon and stay unevaluated until that is
+fixed.
+
+Both are generated from primitives along a centreline, not modelled, and both
+are scaffolding for authored meshes.
+
+Known bug: roughly one race in six never finishes. Unexplained.
 
 Physics constants live in `scripts/simulation/marble_tuning.gd` and are
 expected to change. None of them have been validated on a device yet.
