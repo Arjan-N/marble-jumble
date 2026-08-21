@@ -59,6 +59,32 @@ const OVERHEAD_PITCH := deg_to_rad(68.0)
 ## perspective divergence — which is what keeps the near-orthographic look the
 ## reference image has.
 const OVERHEAD_DISTANCE := 34.0
+## How far back the rig is pulled when the marble is at racing speed.
+##
+## Nothing on screen conveyed speed. The marbles are simulated correctly at 5m/s
+## and at 16, and they look the same at both — a top-down frame that tracks its
+## subject perfectly cancels out the one thing it is supposed to be showing, and
+## the surface stripes were carrying the entire sense of motion.
+##
+## Pulling back widens the shot, so the ground rushes past faster relative to the
+## frame at exactly the moment the marble is going fastest. It also pays off
+## criterion 4 where it counts: the ~22m of course this camera holds is short on
+## look-ahead, and the frame grows precisely when the marble is covering ground
+## quickly enough to need it.
+##
+## Kept to a fifth. Further and the marbles shrink past the point where
+## `PROJECT.md` section 2.5 is satisfied, and the pull starts reading as the
+## camera flinching rather than as speed.
+const OVERHEAD_DISTANCE_FAST := 41.0
+## Speeds the pull is mapped between. Below `SPEED_CALM` the camera sits at
+## `OVERHEAD_DISTANCE`; above `SPEED_FAST` it is fully back.
+const SPEED_CALM := 6.0
+const SPEED_FAST := 16.0
+## Smoothing on the speed the pull reads, which is heavier than the camera's own
+## smoothing on purpose. Raw speed steps hard on every collision, and a camera
+## that lurches backwards each time the marble clips a pillar looks broken
+## rather than fast.
+const SPEED_SMOOTHING := 1.5
 ## Horizontal FOV (see `set_mode`). At `OVERHEAD_DISTANCE` this spans roughly
 ## 13m across, against a widest-case track of ~9m of floor plus outward-leaning
 ## walls. The first render at 28 degrees spanned 17m and left the track using
@@ -93,6 +119,7 @@ var course: Course
 var mode: Mode = DEFAULT_MODE
 
 var _aim := Vector3.ZERO
+var _speed := 0.0
 var _initialised := false
 
 
@@ -146,6 +173,8 @@ func _physics_process(delta: float) -> void:
 	var travel := target.linear_velocity
 	travel.y = 0.0
 
+	_speed = lerpf(_speed, travel.length(), 1.0 - exp(-SPEED_SMOOTHING * delta))
+
 	# A stationary marble at the grid has no travel direction to lead from, so
 	# fall back to the way the course runs.
 	var direction := travel.normalized()
@@ -180,9 +209,14 @@ func _physics_process(delta: float) -> void:
 			# away from it, and the course's descent falls towards the viewer
 			# instead of hiding along the view axis. Reading that gradient is the
 			# question docs/CAMERA_SPIKE.md could not answer facing the other way.
+			var pull := clampf(
+				inverse_lerp(SPEED_CALM, SPEED_FAST, _speed), 0.0, 1.0
+			)
+			var distance := lerpf(OVERHEAD_DISTANCE, OVERHEAD_DISTANCE_FAST, pull)
+
 			desired = aim
-			desired += direction * (OVERHEAD_DISTANCE * cos(OVERHEAD_PITCH))
-			desired.y += OVERHEAD_DISTANCE * sin(OVERHEAD_PITCH)
+			desired += direction * (distance * cos(OVERHEAD_PITCH))
+			desired.y += distance * sin(OVERHEAD_PITCH)
 
 	if not _initialised:
 		_initialised = true

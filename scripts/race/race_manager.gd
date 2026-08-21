@@ -73,6 +73,25 @@ var _standings_age: float = 0.0
 ## be shown without repeating the closest-point searches.
 var _progress: Dictionary = {}
 
+## Overtakes are the drama of a race you cannot steer — the standings renumber
+## and, until this existed, that was the entire event. PROJECT.md section 2.3
+## lists overtakes second, right after collisions.
+##
+## Only the player's are called. Twelve marbles trading places produce a
+## constant churn of swaps that mean nothing to anyone; the one that matters is
+## the one that happened to you.
+var _last_place: int = 0
+var _overtake_cooldown: float = 0.0
+## Marbles still in the running at the last ranking. A fall promotes everyone
+## below it by a place, and that is not an overtake — announcing "passed Basil"
+## because Basil fell into a hole reads as a lie.
+var _last_contenders: int = -1
+
+## How long after calling one swap before another can be called. Two marbles
+## running side by side cross and re-cross several times a second, and without
+## this the notice line strobes.
+const OVERTAKE_COOLDOWN := 1.6
+
 
 func _ready() -> void:
 	_tuning = MarbleTuning.new()
@@ -101,10 +120,14 @@ func _physics_process(delta: float) -> void:
 		_race_time += delta
 		_check_for_falls()
 
+	_overtake_cooldown = maxf(_overtake_cooldown - delta, 0.0)
+
 	_standings_age -= delta
 	if _standings_age <= 0.0:
 		_standings_age = STANDINGS_INTERVAL
 		_rank_field()
+		if _phase == Phase.RACING:
+			_check_for_overtakes()
 
 	if DEBUG_TRACE:
 		_trace_accumulator += delta
@@ -173,7 +196,11 @@ func _restart() -> void:
 	_marbles.clear()
 	_finish_order.clear()
 	_standings.clear()
+	_progress.clear()
 	_player = null
+	_last_place = 0
+	_last_contenders = -1
+	_overtake_cooldown = 0.0
 
 	if _hud != null and is_instance_valid(_hud):
 		_hud.clear_notice()
@@ -370,6 +397,61 @@ func _gap_text(marble: Marble, index: int) -> String:
 	return "%dm" % roundi(gap)
 
 
+## Calls the player gaining or losing a place, naming who it was against.
+##
+## Deliberately reports one place at a time even when several change at once. A
+## marble that emerges from a pile-up four places up did not make four passes,
+## and "passed Otto, Fig, Wren and Sable" is a sentence nobody reads mid-race —
+## the marble it now sits behind is the one the viewer can see.
+func _check_for_overtakes() -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	if _player.state != Marble.State.RACING:
+		_last_place = 0
+		return
+
+	var contenders := 0
+	for marble in _marbles:
+		if marble.state == Marble.State.RACING:
+			contenders += 1
+
+	var place := _player_place()
+	var was := _last_place
+	var field_changed := contenders != _last_contenders
+
+	_last_place = place
+	_last_contenders = contenders
+
+	# First ranking of a race has nothing to compare against, and a ranking taken
+	# across an elimination is measuring the wrong thing.
+	if was <= 0 or place <= 0 or field_changed:
+		return
+	if place == was or _overtake_cooldown > 0.0:
+		return
+
+	if place < was:
+		var passed := _neighbour(place)  # Now directly behind the player.
+		if passed != null:
+			_announce_overtake("Passed %s" % passed.marble_name, passed.colour)
+	else:
+		var passer := _neighbour(place - 2)  # Now directly ahead.
+		if passer != null:
+			_announce_overtake("%s passed you" % passer.marble_name, passer.colour)
+
+
+## The marble at a zero-based standings index, or null if there isn't one.
+func _neighbour(index: int) -> Marble:
+	if index < 0 or index >= _standings.size():
+		return null
+	return _standings[index]
+
+
+func _announce_overtake(text: String, colour: Color) -> void:
+	_overtake_cooldown = OVERTAKE_COOLDOWN
+	if _hud != null and is_instance_valid(_hud):
+		_hud.announce(text, colour)
+
+
 func _course_offset(marble: Marble) -> float:
 	if _course == null or not is_instance_valid(_course) or _course.curve == null:
 		return 0.0
@@ -457,10 +539,10 @@ func _check_for_completion() -> void:
 
 func _setup_environment() -> void:
 	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.35, 0.5, 0.72)
-	sky_material.sky_horizon_color = Color(0.78, 0.72, 0.62)
-	sky_material.ground_bottom_color = Color(0.3, 0.26, 0.22)
-	sky_material.ground_horizon_color = Color(0.6, 0.52, 0.44)
+	sky_material.sky_top_color = Color(0.30, 0.47, 0.74)
+	sky_material.sky_horizon_color = Color(0.85, 0.74, 0.60)
+	sky_material.ground_bottom_color = Color(0.26, 0.18, 0.14)
+	sky_material.ground_horizon_color = Color(0.62, 0.44, 0.31)
 
 	var sky := Sky.new()
 	sky.sky_material = sky_material
@@ -469,15 +551,25 @@ func _setup_environment() -> void:
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.6
+	# Lifted from 0.6 once the course grew six-metre canyon walls. They throw a
+	# long shadow across the track, and at the old ambient level half the width
+	# went nearly black — a marble in that half was unreadable, which section 2.5
+	# does not allow. Ambient is what fills a canyon floor in reality too.
+	environment.ambient_light_energy = 0.95
 
 	var world := WorldEnvironment.new()
 	world.environment = environment
 	add_child(world)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-52.0, -38.0, 0.0)
-	sun.light_energy = 1.1
+	# Steeper and more square-on than the old 52/38. A low sun down a narrow
+	# trough puts one wall's shadow across most of the track; near midday the
+	# walls shade their own bases and the racing surface stays lit. Not quite
+	# overhead, because some rake is what gives the marbles their own shadows,
+	# and those shadows are the only cue that tells a viewer a marble is airborne
+	# over the gap rather than rolling.
+	sun.rotation_degrees = Vector3(-68.0, -22.0, 0.0)
+	sun.light_energy = 1.15
 	sun.shadow_enabled = true
 	add_child(sun)
 

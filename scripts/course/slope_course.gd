@@ -1,8 +1,17 @@
 class_name SlopeCourse
 extends Course
 
-## A straight test course with a shaped vertical profile: pillars, a funnel, a
-## split/merge, a jump, two rotating bumpers, a finish line.
+## A canyon run, straight in plan, with a shaped vertical profile: pillars, two
+## funnels, a split/merge, a staggered jump with a bridge beside it, two rotating
+## bumpers, a finish line.
+##
+## Themed per PROJECT.md section 6's Canyon direction and the phase spec's
+## surface notes — a solid trough between rock walls, alternating rough stone and
+## smoother constructed track, with the difference in friction as well as colour.
+## Of the Canyon mechanics the spec lists (ramps, narrow bridges, falling rocks,
+## split paths, jumps) everything but falling rocks is here; those are an
+## obstacle, and `DECISIONS.md` fixes the rotating bumper as the only Phase 0
+## obstacle, so they need a decision rather than a commit.
 ##
 ## Straight in plan, deliberately. `PROJECT.md` §2.4 says the physical
 ## interaction a course creates matters more than its theme, and everything on
@@ -90,10 +99,57 @@ const BAKE_STEP := 0.5
 ## camera" means here. Retune together with those two.
 const HALF_WIDTH := 6.0
 const FLOOR_THICKNESS := 1.0
+
+## Interior fixtures — funnel walls, the backstop, the wall behind the grid.
+## Waist-high on a marble, so they read as things placed on the course rather
+## than as the course's own sides.
 const RAIL_HEIGHT := 2.2
 const RAIL_THICKNESS := 0.6
 
+## The canyon itself. The phase spec asks for "mostly a solid trough/channel",
+## and thin kerbs on an open plain are not that: the track read as a table with
+## edging, with the frame's corners showing bare ground beyond it.
+##
+## Tall enough to fill the frame at both camera distances — the lens covers
+## 13.2m across at rest and 15.9m pulled back, against 18m of track plus walls —
+## so the shot is bounded by rock at every speed instead of by nothing. Six
+## metres cannot occlude the floor either: the camera sits over the centreline,
+## so the ray to the outermost floor is only ~11 degrees off vertical and clears
+## a wall of this height with a metre to spare.
+const WALL_HEIGHT := 6.0
+const WALL_THICKNESS := 3.0
+
+## Fallback friction, for fixtures that are not track surface.
 const FRICTION := 0.3
+
+## Mixed surfaces, which the phase spec asks for by name: rough canyon stone
+## alternating with smoother constructed track, with the difference showing in
+## friction as well as colour.
+##
+## This is the cheapest gameplay in the whole course. It costs one lookup per
+## floor segment and it gives criterion 2 something to demonstrate beyond
+## gradient — a marble visibly picks up on the poured sections and scrubs off on
+## the rock, and the bands are wide enough to see it happen. The spec is explicit
+## that the difference stay subtle enough for the physics to remain
+## understandable, so the two are 0.22 against 0.45 rather than ice against tar.
+const SURFACE_ROUGH := {"friction": 0.45, "colour": Color(0.60, 0.38, 0.27)}
+const SURFACE_SMOOTH := {"friction": 0.22, "colour": Color(0.55, 0.51, 0.47)}
+
+## Which surface runs up to each fraction of the course. Deliberately not aligned
+## to `PROFILE`: if the smooth sections were the steep ones the course would just
+## have fast bits and slow bits, and every marble would experience them the same
+## way. Offset, they interact — a shallow smooth run holds speed a shallow rough
+## one would have eaten, and the rough band above the jump is what makes arrival
+## speed there depend on the line you took rather than only on the gradient.
+const SURFACES := [
+	[0.20, SURFACE_ROUGH],
+	[0.34, SURFACE_SMOOTH],
+	[0.50, SURFACE_ROUGH],
+	[0.64, SURFACE_SMOOTH],
+	[0.78, SURFACE_ROUGH],
+	[0.92, SURFACE_SMOOTH],
+	[1.00, SURFACE_ROUGH],
+]
 ## Restitution of every surface in the course — floor, rails, pillars, bumper.
 ##
 ## This is the constant that decides whether an obstacle deflects the field or
@@ -219,6 +275,22 @@ const GAP_MAX := 4.5
 ## Distance past the lip at which the floor goes back to full width.
 const GAP_RECOVER := 8.0
 
+## A narrow bridge across the gap, hard against the left wall — one of the
+## Canyon mechanics the spec lists by name, and the thing that makes the left
+## side of the jump a decision rather than a penalty.
+##
+## The stagger already makes the left the long jump. On its own that is just a
+## worse place to be, and a route that is only worse is not a route. With the
+## bridge, the left is: thread 1.8m of stone, or carry enough speed for 4.5m of
+## air. The right stays the plain short jump. Nothing steers, so which of these a
+## marble faces was decided back at the split — which is exactly the physics-
+## decides-the-route rule `DECISIONS.md` sets for the split itself.
+##
+## Narrow enough to be a real thread — a marble is 0.9m across, so this is two
+## marble widths and change, and a crowd arriving together will knock some of
+## each other off it.
+const BRIDGE_WIDTH := 1.8
+
 ## Cross-stripes every this many metres. Purely visual, no collision. The first
 ## overhead render came back as an unbroken beige mass with no sense of motion
 ## in it (`docs/CAMERA_SPIKE.md`); a top-down camera needs something on the
@@ -226,11 +298,26 @@ const GAP_RECOVER := 8.0
 const STRIPE_SPACING := 12.0
 const STRIPE_LENGTH := 1.2
 
-const FLOOR_COLOUR := Color(0.42, 0.45, 0.52)
-const STRIPE_COLOUR := Color(0.30, 0.33, 0.40)
-const RAIL_COLOUR := Color(0.88, 0.62, 0.24)
-const OBSTACLE_COLOUR := Color(0.62, 0.66, 0.74)
+## Canyon palette. Floor colour now comes from `SURFACES`, so what is left here
+## is everything that is not track surface.
+##
+## Warm rock against a cool sky, which is what makes the marbles readable: the
+## field is saturated primaries (`_opponent_colour` runs the full hue wheel at
+## 0.45 saturation) and the player's is cyan, none of which any of this competes
+## with. The old palette put an orange kerb next to orange marbles.
+const STRIPE_COLOUR := Color(0.44, 0.29, 0.21)
+const WALL_COLOUR := Color(0.40, 0.26, 0.20)
+## Wall tops catch the sun; the strip along the rim is what gives the trough a
+## readable height rather than looking like a painted border.
+const WALL_RIM_COLOUR := Color(0.66, 0.45, 0.31)
+const RAIL_COLOUR := Color(0.74, 0.55, 0.30)
+const OBSTACLE_COLOUR := Color(0.72, 0.64, 0.52)
+const ROCK_COLOUR := Color(0.47, 0.33, 0.25)
 const FINISH_COLOUR := Color(0.95, 0.95, 0.98)
+## The canyon floor, far below the jump. Without it the gap is a hole with sky
+## behind it, which reads as a hole in the *level*; with it, it reads as a drop.
+const CHASM_COLOUR := Color(0.24, 0.17, 0.14)
+const CHASM_DROP := 26.0
 
 ## Baked centreline, sampled every `BAKE_STEP` from `-RAMP_LENGTH`.
 var _baked: PackedVector3Array = PackedVector3Array()
@@ -243,9 +330,11 @@ func build() -> void:
 	finish_position = _point(LENGTH)
 
 	_build_floor()
-	_build_rails()
+	_build_walls()
 	_build_stripes()
 	_build_back_wall()
+	_build_chasm_floor()
+	_build_rubble()
 
 	_build_pillar_row(PILLAR_ROW_A, [-3.4, 0.0, 3.4])
 	_build_pillar_row(PILLAR_ROW_B, [-3.9, -1.3, 1.3, 3.9])
@@ -392,6 +481,9 @@ func _build_floor() -> void:
 		var lateral := -HALF_WIDTH + lane_width * (float(lane) + 0.5)
 		_build_floor_run(lip + gap, resume, lateral, lane_width)
 
+	# The bridge spans the whole gap on the far left, where the jump is longest.
+	_build_floor_run(lip, resume, -HALF_WIDTH + BRIDGE_WIDTH * 0.5, BRIDGE_WIDTH)
+
 	_build_floor_run(resume, LENGTH + RUNOFF_LENGTH)
 
 
@@ -402,25 +494,110 @@ func _build_floor_run(from_s: float, to_s: float, lateral := 0.0, width := 0.0) 
 	var s := from_s
 	while s < to_s - 0.001:
 		var to := minf(s + SEGMENT, to_s)
+		# Sampled at the segment's midpoint, so a band boundary lands on whichever
+		# segment straddles it rather than splitting one.
+		var surface: Dictionary = _surface_at((s + to) * 0.5)
 		_add_surface_box(
-			s, to, lateral, width, FLOOR_THICKNESS, -FLOOR_THICKNESS * 0.5, FLOOR_COLOUR
+			s, to, lateral, width, FLOOR_THICKNESS, -FLOOR_THICKNESS * 0.5,
+			surface["colour"], surface["friction"]
 		)
 		s = to
 
 
-## One box per segment per side, matching the floor. The old course used a single
-## box per side for the whole length, which a varying profile cannot do.
-func _build_rails() -> void:
-	var offset := HALF_WIDTH + RAIL_THICKNESS * 0.5
+## Which surface the track has at distance `s`. Before the start line the course
+## is rough, so the field settles and launches off stone rather than off whatever
+## the first band happens to be.
+func _surface_at(s: float) -> Dictionary:
+	var fraction := s / LENGTH
+	for entry: Array in SURFACES:
+		if fraction <= entry[0]:
+			return entry[1]
+	return SURFACES[SURFACES.size() - 1][1]
+
+
+## The canyon walls, one box per segment per side so they follow the profile.
+##
+## Each side gets a rim strip along its top in a lighter rock colour. It costs
+## two more boxes per segment and it is what makes the wall read as a wall: a
+## single flat slab of one colour at this camera angle looks like a border drawn
+## on the ground, because there is no lighting change to tell you it has a top.
+func _build_walls() -> void:
+	var offset := HALF_WIDTH + WALL_THICKNESS * 0.5
+	var rim := 0.5
 
 	for side: float in [-1.0, 1.0]:
 		var s := -RAMP_LENGTH
 		while s < LENGTH + RUNOFF_LENGTH:
 			var to := minf(s + SEGMENT, LENGTH + RUNOFF_LENGTH)
 			_add_surface_box(
-				s, to, side * offset, RAIL_THICKNESS, RAIL_HEIGHT, RAIL_HEIGHT * 0.5, RAIL_COLOUR
+				s, to, side * offset, WALL_THICKNESS, WALL_HEIGHT, WALL_HEIGHT * 0.5,
+				WALL_COLOUR
+			)
+			# Visual only, and inset so it never becomes a lip a marble can catch.
+			_add_visual_box(
+				s, to, side * offset, WALL_THICKNESS, rim, WALL_HEIGHT + rim * 0.5,
+				WALL_RIM_COLOUR
 			)
 			s += SEGMENT
+
+
+## Loose rock along the base of the walls. Canyon dressing, and it does a little
+## work: it makes the trough's sides irregular, so a marble running the wall does
+## not travel a perfectly smooth line. Kept under a metre so the usable width
+## never drops near `MIN_GAP`.
+func _build_rubble() -> void:
+	var placed := 0.0
+	var index := 0
+
+	while placed < LENGTH:
+		placed += 11.0
+		index += 1
+		var side := 1.0 if index % 2 == 0 else -1.0
+		# Skipped over the jump, where there is no floor to sit on.
+		if placed > JUMP_AT * LENGTH - 6.0 and placed < JUMP_AT * LENGTH + GAP_RECOVER:
+			continue
+
+		var radius := 0.55 + fmod(float(index) * 0.37, 0.35)
+		var body := StaticBody3D.new()
+		body.transform = _frame_at(placed).translated_local(
+			Vector3(side * (HALF_WIDTH - radius * 0.4), radius * 0.35, 0.0)
+		)
+		body.physics_material_override = _surface(SURFACE_ROUGH["friction"])
+
+		var shape := SphereShape3D.new()
+		shape.radius = radius
+		var collider := CollisionShape3D.new()
+		collider.shape = shape
+		body.add_child(collider)
+
+		var mesh := SphereMesh.new()
+		mesh.radius = radius
+		mesh.height = radius * 2.0
+		mesh.radial_segments = 6
+		mesh.rings = 3 ## Faceted on purpose: smooth spheres read as more marbles.
+		var visual := MeshInstance3D.new()
+		visual.mesh = mesh
+		visual.material_override = _material(ROCK_COLOUR)
+		body.add_child(visual)
+
+		add_child(body)
+
+
+## A slab far below the jump so the gap reads as a drop into a canyon rather than
+## a hole cut in the level with sky behind it. Visual only — anything that falls
+## this far is already eliminated by `fall_threshold_y`.
+func _build_chasm_floor() -> void:
+	var lip := JUMP_AT * LENGTH
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(HALF_WIDTH * 2.0 + WALL_THICKNESS * 2.0, 1.0, GAP_RECOVER + 24.0)
+
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = _material(CHASM_COLOUR)
+	visual.transform = _frame_at(lip + GAP_RECOVER * 0.5).translated_local(
+		Vector3(0.0, -CHASM_DROP, 0.0)
+	)
+	add_child(visual)
 
 
 ## Visual only — no bodies, no collision.
@@ -596,16 +773,58 @@ func _build_split() -> void:
 ## Pivoted at its near end rather than its centre, so the top face starts flush
 ## with the floor and rises from there. Rotating about the centre would sink the
 ## near end and leave a step for marbles to slam into at speed.
+## A curved ramp, not a tilted slab.
+##
+## A single box rotated to the launch angle meets the floor at whatever the
+## difference between the two happens to be, and once the launch angle was
+## measured from horizontal that difference became 24 degrees against a 16 degree
+## floor. That is not a ramp, it is a V: a marble arriving slowly rolls into the
+## crease and gravity holds it there, because the only direction out is up. Four
+## of twelve parked at the foot of it and the race never ended.
+##
+## Built instead as a run of short segments whose pitch eases from exactly the
+## floor's own grade to `KICKER_LAUNCH`, smoothstepped so the tangent matches the
+## floor at the bottom and the launch angle at the lip. Same reasoning as
+## `GRADE_BLEND` on the floor itself — a marble at speed does not care about a
+## hinge, and a marble not at speed cannot get over one.
+const KICKER_SEGMENTS := 8
+
+
 func _build_kicker() -> void:
 	var lip := JUMP_AT * LENGTH
-	var frame := _frame_at(lip - KICKER_LENGTH)
-	# Undo the local grade before applying the launch angle, so the ramp ends up
-	# at KICKER_LAUNCH above horizontal rather than above the slope.
-	frame = frame.rotated_local(Vector3.RIGHT, _grade_at(lip) + KICKER_LAUNCH)
-	frame = frame.translated_local(Vector3(0.0, -KICKER_THICKNESS * 0.5, -KICKER_LENGTH * 0.5))
+	var start_s := lip - KICKER_LENGTH
+	var grade := _grade_at(start_s)
+
+	var point := _point(start_s)
+	var step := KICKER_LENGTH / float(KICKER_SEGMENTS)
+
+	for i in KICKER_SEGMENTS:
+		# Pitch relative to horizontal: starts at the floor's own descent
+		# (negative) and eases up to the launch angle (positive).
+		var t := smoothstep(0.0, 1.0, (float(i) + 0.5) / float(KICKER_SEGMENTS))
+		var pitch := lerpf(-grade, KICKER_LAUNCH, t)
+		var direction := Vector3(0.0, sin(pitch), -cos(pitch))
+
+		var next := point + direction * step
+		_add_ramp_segment(point, next)
+		point = next
+
+
+## One slab of the kicker, with its top face running between the two points.
+func _add_ramp_segment(from_point: Vector3, to_point: Vector3) -> void:
+	var along := to_point - from_point
+	var span := along.length()
+	if span < 0.001:
+		return
+
+	var forward := along / span
+	var right := Vector3.RIGHT
+	var up := right.cross(forward).normalized()
+
+	var centre := (from_point + to_point) * 0.5 - up * (KICKER_THICKNESS * 0.5)
 	_add_box(
-		frame,
-		Vector3(HALF_WIDTH * 2.0, KICKER_THICKNESS, KICKER_LENGTH),
+		Transform3D(Basis(right, up, -forward), centre),
+		Vector3(HALF_WIDTH * 2.0, KICKER_THICKNESS, span),
 		OBSTACLE_COLOUR.darkened(0.15)
 	)
 
@@ -646,7 +865,8 @@ func _add_surface_box(
 	width: float,
 	height: float,
 	lift: float,
-	colour: Color
+	colour: Color,
+	friction := -1.0
 ) -> void:
 	var start: Vector3 = _frame_at(from_s) * Vector3(lateral, lift, 0.0)
 	var end: Vector3 = _frame_at(to_s) * Vector3(lateral, lift, 0.0)
@@ -663,15 +883,48 @@ func _add_surface_box(
 	_add_box(
 		Transform3D(Basis(right, up, -forward), (start + end) * 0.5),
 		Vector3(width, height, span),
-		colour
+		colour,
+		friction
 	)
 
 
-func _surface() -> PhysicsMaterial:
-	var surface := PhysicsMaterial.new()
-	surface.friction = FRICTION
-	surface.bounce = BOUNCE
-	return surface
+## Same placement as `_add_surface_box` but mesh only, for dressing that must
+## never be something a marble can hit.
+func _add_visual_box(
+	from_s: float,
+	to_s: float,
+	lateral: float,
+	width: float,
+	height: float,
+	lift: float,
+	colour: Color
+) -> void:
+	var start: Vector3 = _frame_at(from_s) * Vector3(lateral, lift, 0.0)
+	var end: Vector3 = _frame_at(to_s) * Vector3(lateral, lift, 0.0)
+
+	var along := end - start
+	var span := along.length()
+	if span < 0.001:
+		return
+
+	var forward := along / span
+	var right := Vector3.RIGHT
+	var up := right.cross(forward).normalized()
+
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(width, height, span)
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = _material(colour)
+	visual.transform = Transform3D(Basis(right, up, -forward), (start + end) * 0.5)
+	add_child(visual)
+
+
+func _surface(friction := -1.0) -> PhysicsMaterial:
+	var material := PhysicsMaterial.new()
+	material.friction = FRICTION if friction < 0.0 else friction
+	material.bounce = BOUNCE
+	return material
 
 
 func _material(colour: Color) -> StandardMaterial3D:
@@ -681,10 +934,10 @@ func _material(colour: Color) -> StandardMaterial3D:
 	return material
 
 
-func _add_box(transform: Transform3D, size: Vector3, colour: Color) -> void:
+func _add_box(transform: Transform3D, size: Vector3, colour: Color, friction := -1.0) -> void:
 	var body := StaticBody3D.new()
 	body.transform = transform
-	body.physics_material_override = _surface()
+	body.physics_material_override = _surface(friction)
 
 	var shape := BoxShape3D.new()
 	shape.size = size
