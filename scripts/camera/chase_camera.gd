@@ -54,7 +54,13 @@ const CHASE_FOV := 34.0
 ## axis, and it was never going to be enough; now the descent runs towards the
 ## lens and pitch is a look, not a rescue. It also does not buy coverage — every
 ## degree it adds at one edge of the frame it takes from the other.
-const OVERHEAD_PITCH := deg_to_rad(68.0)
+## Lowered from 68. On its own this buys almost no extra course — dropping the
+## pitch at a fixed distance slides the rig backwards as it comes down, so the
+## focus stays put and the up-course edge moves by centimetres. What it does buy
+## is the look: a lower angle rakes along the canyon walls instead of peering
+## down between them, so the trough has visible depth and the rock reads as
+## something the marbles are running *through*.
+const OVERHEAD_PITCH := deg_to_rad(61.0)
 ## Further back behind a narrower lens than the chase camera. Same framing, less
 ## perspective divergence — which is what keeps the near-orthographic look the
 ## reference image has.
@@ -109,7 +115,12 @@ const OVERHEAD_FOV := 22.0
 ## covered ~30m, since a slope falling away from the lens stretches the far
 ## ground out; facing up-course that slope rises to meet the ray instead and cuts
 ## the view short. 15m put the whole field off the top edge on the first render.
-const OVERHEAD_LEAD := 5.0
+##
+## Cut from 5 to shift the whole frame up-course. Because the rig looks back, the
+## marble sits *above* the focus, so lowering the lead moves it down the frame
+## and everything up-course of it moves into shot. This is the constant that
+## controls how far up the track you can see; pitch is not.
+const OVERHEAD_LEAD := 2.5
 
 var target: Marble
 ## Optional, and only `Mode.OVERHEAD` uses it. Without it that mode falls back

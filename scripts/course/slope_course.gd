@@ -94,6 +94,24 @@ const SEGMENT := 6.0
 ## solved, because grade varies continuously once smoothed.
 const BAKE_STEP := 0.5
 
+## How far each segment runs past its own end, into the start of the next one.
+##
+## Boxes that meet exactly do not stay met. The two top faces are chords at
+## slightly different angles sharing one point, and at that point the renderer
+## has two coplanar edges and finite depth precision — so the join shows as a
+## hairline of whatever is behind the course, once every `SEGMENT` metres, all
+## the way down. Overlapping hides it: there is always solid geometry behind the
+## seam.
+##
+## Overlap runs down-course only, so each segment reaches forward into the next
+## rather than both reaching into each other. Where the grade steepens that
+## leaves the upper segment's lip fractionally proud of the lower one, but the
+## angle between neighbours is under a degree by construction (`GRADE_BLEND`), so
+## the step is around a millimetre — three orders of magnitude under the marble
+## radius, and facing down-course where a marble rolls off it rather than into
+## it.
+const SEAM_OVERLAP := 0.06
+
 ## Half the floor width. The full 12m spans most of the overhead camera's ~13.2m
 ## frame at `OVERHEAD_DISTANCE` / `OVERHEAD_FOV`, which is what "the width of the
 ## camera" means here. Retune together with those two.
@@ -132,8 +150,8 @@ const FRICTION := 0.3
 ## the rock, and the bands are wide enough to see it happen. The spec is explicit
 ## that the difference stay subtle enough for the physics to remain
 ## understandable, so the two are 0.22 against 0.45 rather than ice against tar.
-const SURFACE_ROUGH := {"friction": 0.45, "colour": Color(0.60, 0.38, 0.27)}
-const SURFACE_SMOOTH := {"friction": 0.22, "colour": Color(0.55, 0.51, 0.47)}
+const SURFACE_ROUGH := {"friction": 0.45, "colour": Color(0.47, 0.34, 0.26)}
+const SURFACE_SMOOTH := {"friction": 0.22, "colour": Color(0.45, 0.42, 0.39)}
 
 ## Which surface runs up to each fraction of the course. Deliberately not aligned
 ## to `PROFILE`: if the smooth sections were the steep ones the course would just
@@ -295,8 +313,6 @@ const BRIDGE_WIDTH := 1.8
 ## overhead render came back as an unbroken beige mass with no sense of motion
 ## in it (`docs/CAMERA_SPIKE.md`); a top-down camera needs something on the
 ## surface to move past.
-const STRIPE_SPACING := 12.0
-const STRIPE_LENGTH := 1.2
 
 ## Canyon palette. Floor colour now comes from `SURFACES`, so what is left here
 ## is everything that is not track surface.
@@ -305,15 +321,65 @@ const STRIPE_LENGTH := 1.2
 ## field is saturated primaries (`_opponent_colour` runs the full hue wheel at
 ## 0.45 saturation) and the player's is cyan, none of which any of this competes
 ## with. The old palette put an orange kerb next to orange marbles.
-const STRIPE_COLOUR := Color(0.44, 0.29, 0.21)
-const WALL_COLOUR := Color(0.40, 0.26, 0.20)
+## Everything below is deliberately low-saturation. The first canyon palette was
+## right in hue and wrong in intensity — a bright orange kerb beside a red-brown
+## floor beside a pale grey track reads as moulded plastic, because saturated
+## flat colour is what toys are made of and weathered rock is not. Real stone
+## sits between 0.10 and 0.25 saturation; the contrast that makes a course
+## readable should come from value and from the marbles, which are the only
+## saturated things in frame and are supposed to be.
+const WALL_COLOUR := Color(0.36, 0.25, 0.20)
 ## Wall tops catch the sun; the strip along the rim is what gives the trough a
 ## readable height rather than looking like a painted border.
-const WALL_RIM_COLOUR := Color(0.66, 0.45, 0.31)
-const RAIL_COLOUR := Color(0.74, 0.55, 0.30)
-const OBSTACLE_COLOUR := Color(0.72, 0.64, 0.52)
-const ROCK_COLOUR := Color(0.47, 0.33, 0.25)
-const FINISH_COLOUR := Color(0.95, 0.95, 0.98)
+const WALL_RIM_COLOUR := Color(0.72, 0.52, 0.36)
+
+## The wall's cross-section, bottom tier first: how tall each band is, how far it
+## steps back from the one below, and what colour the rock is.
+##
+## Two things were making the canyon read as a corridor. It was one flat slab of
+## one colour, and it was perfectly vertical — so the only edge in the whole
+## frame was where wall met floor, and nothing said how tall it was or what it
+## was made of. Sedimentary banding and a stepped profile are the two things a
+## real canyon has that a wall does not.
+##
+## Every tier steps *outward* going up, never in. An overhang would put a ledge
+## over the track that a stray marble could land on and sit out the race, and
+## this course has produced enough of those already. Stepping out also opens the
+## trough towards the sky, which is what stops six metres of rock either side
+## feeling like a lid.
+##
+## Colours run dark at the bottom to pale at the rim — shadowed rock below,
+## sun-bleached stone above. That gradient does the same job as the rim strip,
+## on the whole height rather than the last half metre.
+const WALL_TIERS := [
+	{"height": 2.1, "inset": 0.0, "colour": Color(0.34, 0.22, 0.17)},
+	{"height": 1.5, "inset": 0.45, "colour": Color(0.50, 0.31, 0.23)},
+	{"height": 1.2, "inset": 0.95, "colour": Color(0.42, 0.28, 0.22)},
+	{"height": 1.7, "inset": 1.55, "colour": Color(0.63, 0.44, 0.31)},
+]
+
+## How much a segment's rock colour may drift from its tier's base colour. Rock
+## is not painted: without this the strata are four perfectly even ribbons
+## running the length of the course, which reads as architecture. Deterministic
+## rather than random, so a course rebuilds identically — a restart that reshuffles
+## the scenery looks like a glitch.
+const WALL_COLOUR_VARIANCE := 0.09
+
+## Dark scree where wall meets floor. The join is the strongest line in frame and
+## a hard edge between two flat colours is what makes it look like a join rather
+## than a place where rock meets sand.
+const SCREE_COLOUR := Color(0.30, 0.20, 0.16)
+const SCREE_WIDTH := 1.3
+## Funnel walls, backstop, the wall behind the grid — the course's constructed
+## sections, which the phase spec allows a few of. Weathered timber and old
+## steel rather than fresh paint: they have to read as placed rather than
+## natural, but a marble race is not a construction site.
+const RAIL_COLOUR := Color(0.44, 0.36, 0.30)
+const OBSTACLE_COLOUR := Color(0.50, 0.44, 0.38)
+const ROCK_COLOUR := Color(0.41, 0.30, 0.24)
+## The one thing in the course allowed to be bright, because it is the only thing
+## the player is meant to be looking for besides the marbles.
+const FINISH_COLOUR := Color(0.92, 0.91, 0.86)
 ## The canyon floor, far below the jump. Without it the gap is a hole with sky
 ## behind it, which reads as a hole in the *level*; with it, it reads as a drop.
 const CHASM_COLOUR := Color(0.24, 0.17, 0.14)
@@ -331,7 +397,6 @@ func build() -> void:
 
 	_build_floor()
 	_build_walls()
-	_build_stripes()
 	_build_back_wall()
 	_build_chasm_floor()
 	_build_rubble()
@@ -497,6 +562,11 @@ func _build_floor_run(from_s: float, to_s: float, lateral := 0.0, width := 0.0) 
 		# Sampled at the segment's midpoint, so a band boundary lands on whichever
 		# segment straddles it rather than splitting one.
 		var surface: Dictionary = _surface_at((s + to) * 0.5)
+		# One flat colour per band, deliberately. Weathering the floor per segment
+		# breaks up the flatness but it also draws a line at every segment
+		# boundary, which is the opposite of what is wanted — the floor is most of
+		# the frame, so it is where a seam shows worst. The rough/smooth banding
+		# carries the variety instead, without drawing a line anywhere.
 		_add_surface_box(
 			s, to, lateral, width, FLOOR_THICKNESS, -FLOOR_THICKNESS * 0.5,
 			surface["colour"], surface["friction"]
@@ -521,24 +591,62 @@ func _surface_at(s: float) -> Dictionary:
 ## two more boxes per segment and it is what makes the wall read as a wall: a
 ## single flat slab of one colour at this camera angle looks like a border drawn
 ## on the ground, because there is no lighting change to tell you it has a top.
+## Collision and appearance are built separately here, which is the only reason
+## the tiers are safe. The collider is one plain slab with its inner face at
+## `HALF_WIDTH` for the wall's full height, exactly as before — the physics of
+## the trough are unchanged and unchangeable by anything cosmetic. The strata are
+## meshes laid over and outside it.
+##
+## Where they disagree, the invisible wall is always *inside* the visible rock,
+## so nothing ever appears to pass through stone; a marble bouncing high simply
+## stops a few centimetres early against a face it cannot reach anyway.
 func _build_walls() -> void:
 	var offset := HALF_WIDTH + WALL_THICKNESS * 0.5
-	var rim := 0.5
+	var rim := 0.4
 
 	for side: float in [-1.0, 1.0]:
 		var s := -RAMP_LENGTH
+		var index := 0
 		while s < LENGTH + RUNOFF_LENGTH:
 			var to := minf(s + SEGMENT, LENGTH + RUNOFF_LENGTH)
-			_add_surface_box(
-				s, to, side * offset, WALL_THICKNESS, WALL_HEIGHT, WALL_HEIGHT * 0.5,
-				WALL_COLOUR
-			)
-			# Visual only, and inset so it never becomes a lip a marble can catch.
+
+			_add_collider_box(s, to, side * offset, WALL_THICKNESS, WALL_HEIGHT, WALL_HEIGHT * 0.5)
+
+			var base := 0.0
+			for tier: Dictionary in WALL_TIERS:
+				var height: float = tier["height"]
+				var inset: float = tier["inset"]
+				_add_visual_box(
+					s, to,
+					side * (offset + inset),
+					WALL_THICKNESS, height, base + height * 0.5,
+					_weathered(tier["colour"], index)
+				)
+				base += height
+
 			_add_visual_box(
-				s, to, side * offset, WALL_THICKNESS, rim, WALL_HEIGHT + rim * 0.5,
-				WALL_RIM_COLOUR
+				s, to, side * (offset + WALL_TIERS[WALL_TIERS.size() - 1]["inset"]),
+				WALL_THICKNESS, rim, base + rim * 0.5, WALL_RIM_COLOUR
 			)
+
+			# Scree, laid on the floor rather than against the wall so it never
+			# becomes a lip. Purely a softener for the wall/floor join.
+			_add_visual_box(
+				s, to, side * (HALF_WIDTH - SCREE_WIDTH * 0.5),
+				SCREE_WIDTH, 0.06, 0.03, _weathered(SCREE_COLOUR, index + 3)
+			)
+
 			s += SEGMENT
+			index += 1
+
+
+## A tier's colour, nudged per segment so the strata are not four even ribbons.
+## Hashed off the segment index rather than drawn from an RNG: the course must
+## rebuild identically on restart, and `_rng` belongs to the race, not the
+## scenery.
+func _weathered(base: Color, index: int) -> Color:
+	var noise := fmod(sin(float(index) * 12.9898) * 43758.5453, 1.0)
+	return base.lightened(absf(noise) * WALL_COLOUR_VARIANCE)
 
 
 ## Loose rock along the base of the walls. Canyon dressing, and it does a little
@@ -600,26 +708,6 @@ func _build_chasm_floor() -> void:
 	add_child(visual)
 
 
-## Visual only — no bodies, no collision.
-func _build_stripes() -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = STRIPE_COLOUR
-	material.roughness = 0.95
-
-	var gap_start := JUMP_AT * LENGTH
-	var s := STRIPE_SPACING
-	while s < LENGTH:
-		if s < gap_start or s > gap_start + GAP_MAX:
-			var mesh := BoxMesh.new()
-			mesh.size = Vector3(HALF_WIDTH * 2.0, 0.05, STRIPE_LENGTH)
-			var visual := MeshInstance3D.new()
-			visual.mesh = mesh
-			visual.material_override = material
-			visual.transform = _frame_at(s).translated_local(Vector3(0.0, 0.02, 0.0))
-			add_child(visual)
-		s += STRIPE_SPACING
-
-
 func _build_back_wall() -> void:
 	_add_box(
 		_frame_at(-RAMP_LENGTH).translated_local(
@@ -657,14 +745,34 @@ func _add_pillar(frame: Transform3D, offset: float) -> void:
 	collider.shape = shape
 	body.add_child(collider)
 
+	# Faceted and tapered, so it reads as a weathered rock column rather than a
+	# turned plastic peg. The collider stays a clean cylinder — the facets are
+	# only ever a few centimetres and marbles should bounce off the shape the
+	# course was tuned with, not off whatever the mesh happens to do.
 	var mesh := CylinderMesh.new()
-	mesh.top_radius = PILLAR_RADIUS
-	mesh.bottom_radius = PILLAR_RADIUS
+	mesh.top_radius = PILLAR_RADIUS * 0.82
+	mesh.bottom_radius = PILLAR_RADIUS * 1.12
 	mesh.height = PILLAR_HEIGHT
+	mesh.radial_segments = 7
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
-	visual.material_override = _material(OBSTACLE_COLOUR)
+	visual.material_override = _material(
+		_weathered(OBSTACLE_COLOUR, int(abs(offset) * 7.0))
+	)
 	body.add_child(visual)
+
+	# A skirt of debris where the column meets the floor, so it looks eroded into
+	# the ground rather than dropped onto it.
+	var skirt := MeshInstance3D.new()
+	var skirt_mesh := CylinderMesh.new()
+	skirt_mesh.top_radius = PILLAR_RADIUS * 1.25
+	skirt_mesh.bottom_radius = PILLAR_RADIUS * 1.75
+	skirt_mesh.height = 0.22
+	skirt_mesh.radial_segments = 7
+	skirt.mesh = skirt_mesh
+	skirt.material_override = _material(ROCK_COLOUR)
+	skirt.position = Vector3(0.0, -PILLAR_HEIGHT * 0.5 + 0.11, 0.0)
+	visual.add_child(skirt)
 
 	add_child(body)
 
@@ -736,11 +844,21 @@ func _build_split() -> void:
 	_assert_gaps_passable([DIVIDER_LANE_PILLAR], -HALF_WIDTH, left_lane_edge)
 	_assert_gaps_passable([], right_lane_edge, HALF_WIDTH)
 
-	_add_surface_box(
-		from_s, to_s, DIVIDER_OFFSET,
-		DIVIDER_THICKNESS, DIVIDER_HEIGHT, DIVIDER_HEIGHT * 0.5,
-		OBSTACLE_COLOUR.darkened(0.1)
-	)
+	# Built in segments so it weathers along its length like the walls do. As one
+	# box in one colour it was a twenty-five metre pale slab down the middle of
+	# the frame — the most toy-like object on the course.
+	var chunk := 5.0
+	var at := from_s
+	var index := 0
+	while at < to_s - 0.001:
+		var next := minf(at + chunk, to_s)
+		_add_surface_box(
+			at, next, DIVIDER_OFFSET,
+			DIVIDER_THICKNESS, DIVIDER_HEIGHT, DIVIDER_HEIGHT * 0.5,
+			_weathered(WALL_COLOUR.lightened(0.12), index + 11)
+		)
+		at = next
+		index += 1
 
 	for end_s: float in [from_s, to_s]:
 		var body := StaticBody3D.new()
@@ -869,7 +987,7 @@ func _add_surface_box(
 	friction := -1.0
 ) -> void:
 	var start: Vector3 = _frame_at(from_s) * Vector3(lateral, lift, 0.0)
-	var end: Vector3 = _frame_at(to_s) * Vector3(lateral, lift, 0.0)
+	var end: Vector3 = _frame_at(to_s + SEAM_OVERLAP) * Vector3(lateral, lift, 0.0)
 
 	var along := end - start
 	var span := along.length()
@@ -888,6 +1006,42 @@ func _add_surface_box(
 	)
 
 
+## Same placement as `_add_surface_box` but collision only, for shapes whose
+## appearance is built separately — the canyon walls, where the strata are meshes
+## laid over one plain slab.
+func _add_collider_box(
+	from_s: float,
+	to_s: float,
+	lateral: float,
+	width: float,
+	height: float,
+	lift: float
+) -> void:
+	var start: Vector3 = _frame_at(from_s) * Vector3(lateral, lift, 0.0)
+	var end: Vector3 = _frame_at(to_s + SEAM_OVERLAP) * Vector3(lateral, lift, 0.0)
+
+	var along := end - start
+	var span := along.length()
+	if span < 0.001:
+		return
+
+	var forward := along / span
+	var right := Vector3.RIGHT
+	var up := right.cross(forward).normalized()
+
+	var body := StaticBody3D.new()
+	body.transform = Transform3D(Basis(right, up, -forward), (start + end) * 0.5)
+	body.physics_material_override = _surface()
+
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(width, height, span)
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	body.add_child(collider)
+
+	add_child(body)
+
+
 ## Same placement as `_add_surface_box` but mesh only, for dressing that must
 ## never be something a marble can hit.
 func _add_visual_box(
@@ -900,7 +1054,7 @@ func _add_visual_box(
 	colour: Color
 ) -> void:
 	var start: Vector3 = _frame_at(from_s) * Vector3(lateral, lift, 0.0)
-	var end: Vector3 = _frame_at(to_s) * Vector3(lateral, lift, 0.0)
+	var end: Vector3 = _frame_at(to_s + SEAM_OVERLAP) * Vector3(lateral, lift, 0.0)
 
 	var along := end - start
 	var span := along.length()
@@ -927,10 +1081,16 @@ func _surface(friction := -1.0) -> PhysicsMaterial:
 	return material
 
 
+## Rock is not plastic: fully rough, no metallic, and specular killed outright.
+## Godot's default specular puts a soft sheen on every surface, and a sheen
+## across a whole canyon is most of what made it look moulded. The marbles keep
+## their own material and stay the only shiny things in frame.
 func _material(colour: Color) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = colour
-	material.roughness = 0.85
+	material.roughness = 1.0
+	material.metallic = 0.0
+	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	return material
 
 

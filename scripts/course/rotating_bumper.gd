@@ -29,9 +29,15 @@ static func create() -> RotatingBumper:
 func _build() -> void:
 	sync_to_physics = true
 
+	# Old rusted steel, not safety orange. It is the one moving thing on the
+	# course and it does need to be spotted, but it was reading as a toy against
+	# a canyon — and the marbles, which are the saturated things the player is
+	# supposed to be tracking, were losing the contrast to it. Warmer and lighter
+	# than the rock around it is enough to pick it out.
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.85, 0.55, 0.25)
-	material.roughness = 0.6
+	material.albedo_color = Color(0.56, 0.39, 0.26)
+	material.roughness = 0.9
+	material.metallic = 0.15
 
 	for i in ARM_COUNT:
 		var angle := TAU * float(i) / float(ARM_COUNT)
