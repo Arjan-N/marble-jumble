@@ -74,6 +74,13 @@
 
 - Exact Godot 4.x version
 - Exact camera angle/focal parameters
+- **Whether the locked camera/projection and landscape presentation survive.** An
+  open spike is testing a portrait, near-top-down framing against them on a real
+  phone, because the locked chase camera cannot show a twelve-marble field. The
+  locked decisions above stand until that test is written up — see
+  `docs/CAMERA_SPIKE.md`. Do not treat the portrait settings currently in
+  `project.godot`, or `Mode.OVERHEAD` in `scripts/camera/chase_camera.gd`, as
+  decided.
 - Exact physics tuning values (friction, restitution, gravity scaling, etc.)
 - Exact mobile performance target / frame-rate target after first real-device test
 - Determinism guarantees of the physics simulation
