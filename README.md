@@ -14,6 +14,7 @@ whether watching a marble race is satisfying enough to restart immediately.
 | [`DECISIONS.md`](DECISIONS.md) | Dated decision log |
 | [`docs/PHASE_0_TECHNICAL_SPEC.md`](docs/PHASE_0_TECHNICAL_SPEC.md) | Locked scope for the current phase |
 | [`docs/CAMERA_SPIKE.md`](docs/CAMERA_SPIKE.md) | Open camera experiment — decides nothing yet |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Wanted and not yet built, with enough context to pick up cold |
 
 Where they disagree, the more specific and more recent one wins:
 `DECISIONS.md` > phase spec > `PROJECT.md`.
