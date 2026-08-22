@@ -67,9 +67,19 @@ const CONTROL_POINTS := [
 	Vector3(6.0, -12.0, -55.0),  # S-curve, first bend
 	Vector3(-6.0, -16.5, -74.0), # S-curve, second bend
 	Vector3(0.0, -21.0, -92.0),  # narrowing funnel
-	Vector3(0.0, -25.0, -108.0), # split / merge
-	Vector3(0.0, -24.6, -119.0), # small uphill, slowdown
-	Vector3(0.0, -27.5, -131.0), # jump approach
+	# The funnel-to-split stretch (6→7 below) descends at ~14 degrees; the
+	# original "small uphill" point right after it was a near-flat ~4 degrees —
+	# a sudden deceleration at a single knot. Catmull-Rom's tangent at that knot
+	# is blended from its neighbours (see CURVE_TENSION below), so a slope this
+	# abrupt makes the baked curve overshoot: it bulges upward locally even
+	# though both endpoints still descend, exactly matching the field's
+	# documented stall near ratio 0.66 and the "sudden slope that almost cannot
+	# be overcome" seen on screen. Split into two gentler steps (~11 degrees,
+	# then ~9) instead of one sharp one so the tangent has room to catch up.
+	Vector3(0.0, -23.5, -100.0), # funnel exit, tapering off the descent
+	Vector3(0.0, -25.5, -108.0), # split / merge
+	Vector3(0.0, -26.7, -119.0), # small uphill, slowdown
+	Vector3(0.0, -28.4, -131.0), # jump approach
 	Vector3(0.0, -31.0, -145.0), # rotating bumper
 	Vector3(0.0, -34.0, -159.0), # finish
 ]
@@ -94,7 +104,12 @@ const ROUGH_UNTIL := 0.55 ## Rough canyon stone before here, smoother build afte
 const ROUGH_FRICTION := 0.55
 const SMOOTH_FRICTION := 0.25
 const ROUGH_COLOUR := Color(0.62, 0.47, 0.36)
-const SMOOTH_COLOUR := Color(0.48, 0.50, 0.54)
+## Was a near-neutral (0.48, 0.50, 0.54). With default specular still on (see
+## `_build_surface`) and roughness at 0.9 rather than fully killed, a colour
+## this close to grey shows the sky's own blue rather than any tone of its
+## own — the same problem `slope_course.gd`'s SURFACE_SMOOTH had. Warmed to
+## read as pale stone instead of ice.
+const SMOOTH_COLOUR := Color(0.58, 0.52, 0.42)
 
 ## Marbles below this are out of bounds. Must stay clear of the finish, which
 ## is the lowest point of the course. Tunable, per the spec.
@@ -254,6 +269,11 @@ func _build_surface(from_index: int, to_index: int, friction: float, colour: Col
 	var material := StandardMaterial3D.new()
 	material.albedo_color = colour
 	material.roughness = 0.9
+	material.metallic = 0.0
+	# Godot's default specular puts a soft sheen on every surface; against a
+	# blue sky that sheen reads as a cool highlight on what is meant to be
+	# rock. `slope_course.gd` disables this for the same reason.
+	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	# The ribbon is a single-sided surface and winding varies with the banking;
 	# for placeholder geometry, drawing both sides beats chasing normals.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -307,20 +327,37 @@ func _add_back_wall() -> void:
 	)
 
 
-## One divider, as a single long box rather than a run of short ones: the
-## section is straight here, and a run of boxes would reintroduce the seams the
-## swept surface exists to avoid. Which side a marble takes is decided by
-## physics alone, with no route selection and no AI (spec section 6).
+## A run of short boxes, each using its own local frame, not one long box built
+## from a single frame at the range's midpoint. `WIDTH_KEYS` takes the trough
+## from a 2.0 half-width funnel at ratio 0.58 to a 3.6 split/merge at 0.66 and
+## back to 3.0 by 0.78 — the divider sits inside that change, and a single
+## rigid box spanning it, oriented only at its centre, drifts away from the
+## actual swept floor's width and banking at both ends. That mismatch is the
+## likely cause of this course's documented stall near ratio 0.66: an invisible
+## lip or pocket where the straight box and the curved floor disagree, wide
+## enough to catch a marble and never let it go. Each segment here is short
+## enough that the same drift over its own length is negligible.
+##
+## Which side a marble takes is still decided by physics alone, with no route
+## selection and no AI (spec section 6) — segmenting the geometry doesn't
+## touch that.
+const DIVIDER_SEGMENT_LENGTH := 2.0
+
 func _add_split_divider() -> void:
-	var centre_ratio := (SPLIT_RANGE.x + SPLIT_RANGE.y) * 0.5
-	var length := (SPLIT_RANGE.y - SPLIT_RANGE.x) * _race_length
-	var frame := _frame_at(_offset_for_ratio(centre_ratio))
-	_add_box(
-		frame.translated_local(Vector3(0.0, WALL_HEIGHT * 0.4, 0.0)),
-		Vector3(0.5, WALL_HEIGHT * 0.8, length),
-		Color(0.55, 0.45, 0.38),
-		SMOOTH_FRICTION
-	)
+	var from_offset := _offset_for_ratio(SPLIT_RANGE.x)
+	var to_offset := _offset_for_ratio(SPLIT_RANGE.y)
+
+	var s := from_offset
+	while s < to_offset - 0.001:
+		var next := minf(s + DIVIDER_SEGMENT_LENGTH, to_offset)
+		var frame := _frame_at((s + next) * 0.5)
+		_add_box(
+			frame.translated_local(Vector3(0.0, WALL_HEIGHT * 0.4, 0.0)),
+			Vector3(0.5, WALL_HEIGHT * 0.8, next - s),
+			Color(0.55, 0.45, 0.38),
+			SMOOTH_FRICTION
+		)
+		s = next
 
 
 func _add_bumper() -> void:

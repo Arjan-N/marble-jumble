@@ -151,7 +151,13 @@ const FRICTION := 0.3
 ## that the difference stay subtle enough for the physics to remain
 ## understandable, so the two are 0.22 against 0.45 rather than ice against tar.
 const SURFACE_ROUGH := {"friction": 0.45, "colour": Color(0.47, 0.34, 0.26)}
-const SURFACE_SMOOTH := {"friction": 0.22, "colour": Color(0.45, 0.42, 0.39)}
+## Was a near-neutral (0.45, 0.42, 0.39). Specular is killed and roughness is
+## 1.0 (see `_material`), so a surface this close to grey has nothing of its
+## own to show against the sky's ambient light and just renders as whatever
+## tint the sky contributes — which is blue at the top of its dome. Warmed the
+## base tone so "smoother constructed track" reads as pale stone, not asphalt
+## under a blue sky.
+const SURFACE_SMOOTH := {"friction": 0.22, "colour": Color(0.52, 0.46, 0.37)}
 
 ## Which surface runs up to each fraction of the course. Deliberately not aligned
 ## to `PROFILE`: if the smooth sections were the steep ones the course would just
@@ -1164,6 +1170,14 @@ func start_width() -> float:
 	return HALF_WIDTH * 2.0
 
 
+## How far above the settled formation marbles are released from. The ramp
+## here is already a 13-degree downhill (`PROFILE`'s first entry covers the
+## whole starting ramp), so a marble dropped at the old back-2.5m spawn point
+## reached the barrier in well under a second — physically a roll, but too
+## short a distance to read as one. This buys about a second and a half of
+## travel, and it still settles with room to spare inside `RAMP_LENGTH` (14m).
+const ROLL_IN_DISTANCE := 9.0
+
 ## Six across rather than the Canyon's four: the track is twice as wide, and a
 ## narrow huddle on a wide start line wastes the opening entirely.
 func get_spawn_transforms(count: int, rng: RandomNumberGenerator) -> Array[Transform3D]:
@@ -1175,7 +1189,7 @@ func get_spawn_transforms(count: int, rng: RandomNumberGenerator) -> Array[Trans
 		var row := i / per_row
 		var column := i % per_row
 		var x := (float(column) - float(per_row - 1) * 0.5) * spacing
-		var back := 2.5 + float(row) * spacing
+		var back := 2.5 + float(row) * spacing + ROLL_IN_DISTANCE
 
 		x += rng.randf_range(-0.12, 0.12)
 		back += rng.randf_range(-0.12, 0.12)
