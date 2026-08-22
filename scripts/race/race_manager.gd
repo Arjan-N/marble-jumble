@@ -31,6 +31,15 @@ const OPPONENT_NAMES := [
 ## How many places either side of the cut count as "close enough to care".
 const CUT_ATTENTION := 2
 
+## Seconds before release at which the countdown starts appearing.
+##
+## The five seconds before the barrier drops were the least interesting part of
+## the race: twelve marbles sat still, a number ticked down in small text, and
+## nothing said the race was about to start. A countdown is the cheapest tension
+## there is, and it makes the barrier tap feel like skipping a queue rather than
+## like nothing.
+const COUNTDOWN_FROM := 3
+
 ## The player's marble. `PROJECT.md` section 2.1 wants one persistent, named,
 ## customisable marble; naming it is Phase 1's job, along with the rest of
 ## customisation. Until then it says what it is, which is the one thing the
@@ -82,6 +91,19 @@ var _progress: Dictionary = {}
 ## the one that happened to you.
 var _last_place: int = 0
 var _overtake_cooldown: float = 0.0
+## Highest count already called, so each number is announced once rather than
+## every frame it is true for.
+var _countdown_called: int = 0
+
+## Last jump clearance seen per marble, so the crossing can be spotted as a sign
+## change rather than by trying to catch the instant of landing.
+var _clearance: Dictionary = {}
+
+## How little a marble can have to spare and still be said to have "just made
+## it", in metres. Generous, because the field is only sampled ten times a second
+## and a marble crossing at 15 m/s moves a metre and a half between looks — a
+## tighter threshold would mostly measure sampling luck.
+const NEAR_MISS_MARGIN := 2.5
 ## Marbles still in the running at the last ranking. A fall promotes everyone
 ## below it by a place, and that is not an overtake — announcing "passed Basil"
 ## because Basil fell into a hole reads as a lie.
@@ -128,6 +150,7 @@ func _physics_process(delta: float) -> void:
 		_rank_field()
 		if _phase == Phase.RACING:
 			_check_for_overtakes()
+			_check_for_near_misses()
 
 	if DEBUG_TRACE:
 		_trace_accumulator += delta
@@ -201,6 +224,8 @@ func _restart() -> void:
 	_last_place = 0
 	_last_contenders = -1
 	_overtake_cooldown = 0.0
+	_countdown_called = 0
+	_clearance.clear()
 
 	if _hud != null and is_instance_valid(_hud):
 		_hud.clear_notice()
@@ -274,6 +299,8 @@ func _on_barrier_opened() -> void:
 		marble.state = Marble.State.RACING
 		marble.sleeping = false
 
+	_hud.shout("GO", Color(0.72, 0.95, 0.62))
+
 
 # --- Standings ----------------------------------------------------------------
 
@@ -334,6 +361,16 @@ func _standings_rows() -> Array:
 	# section 3: twelve start, the top six go through.
 	var cut_index := MARBLE_COUNT / 2 - 1
 
+	# Once the race is over the whole field goes up. The four-row rule exists
+	# because a standings column competes with a race for attention, and at this
+	# point there is no race left to compete with — this *is* what the player is
+	# looking at, and "who else survived" is the question the round ends on.
+	if _phase == Phase.COMPLETE:
+		var all := {}
+		for index in _standings.size():
+			all[index] = true
+		return _rows_for(all, MARBLE_COUNT / 2 - 1, true)
+
 	var wanted := {0: true}
 	var player_index := _standings.find(_player)
 
@@ -353,6 +390,11 @@ func _standings_rows() -> Array:
 			if index >= 0 and index < _standings.size():
 				wanted[index] = true
 
+	return _rows_for(wanted, cut_index, near_cut)
+
+
+## Turns a set of standings indices into HUD rows, in order, eliding the gaps.
+func _rows_for(wanted: Dictionary, cut_index: int, show_cut: bool) -> Array:
 	var indices := wanted.keys()
 	indices.sort()
 
@@ -371,7 +413,7 @@ func _standings_rows() -> Array:
 		})
 		previous = index
 
-		if near_cut and index == cut_index:
+		if show_cut and index == cut_index:
 			rows.append({"cut": true})
 
 	return rows
@@ -437,6 +479,39 @@ func _check_for_overtakes() -> void:
 		var passer := _neighbour(place - 2)  # Now directly ahead.
 		if passer != null:
 			_announce_overtake("%s passed you" % passer.marble_name, passer.colour)
+
+
+## Calls a marble that got over the gap with almost nothing to spare.
+##
+## Watched as a sign change in the course's own clearance figure rather than by
+## trying to catch the moment of landing: landing is one physics frame, the field
+## is sampled ten times a second, and a marble that is short simply falls, so the
+## sign never flips for it. Anything that crosses from negative to positive got
+## across, and how small the positive is says by how much.
+func _check_for_near_misses() -> void:
+	for marble in _marbles:
+		if marble.state != Marble.State.RACING:
+			_clearance.erase(marble)
+			continue
+
+		var now: float = _course.jump_clearance(marble.global_position)
+		var before: float = _clearance.get(marble, INF)
+		_clearance[marble] = now
+
+		if is_inf(now) or is_inf(before):
+			continue
+		if before >= 0.0 or now < 0.0:
+			continue
+		if now > NEAR_MISS_MARGIN or _overtake_cooldown > 0.0:
+			continue
+
+		# Shares the overtake cooldown deliberately. Both write the same line,
+		# and a marble landing during someone else's pass should not stamp on it.
+		_overtake_cooldown = OVERTAKE_COOLDOWN
+		if marble.is_player:
+			_hud.announce("You just made it", PLAYER_COLOUR)
+		else:
+			_hud.announce("%s just made it" % marble.marble_name, marble.colour)
 
 
 ## The marble at a zero-based standings index, or null if there isn't one.
@@ -578,25 +653,39 @@ func _setup_environment() -> void:
 
 
 func _update_hud() -> void:
-	_hud.show_standings(_standings_rows())
+	# Nothing to stand on before the barrier drops — the field is a stationary
+	# grid and any order shown would be the arbitrary one they happen to be
+	# ranked in. A column of noise is worse than an empty corner.
+	_hud.show_standings([] if _phase == Phase.SETTLING else _standings_rows())
 
 	match _phase:
 		Phase.SETTLING:
-			_hud.show_text(
-				"Tap the barrier to start  (auto %.1fs)%s" % [
-					_barrier.time_remaining(), _camera_debug()
-				]
-			)
+			_run_countdown()
+			_hud.show_text("Tap the barrier to start%s" % _camera_debug())
 		Phase.RACING:
 			_hud.show_text(
 				"%.1fs    %s%s" % [_race_time, _live_position(), _camera_debug()]
 			)
 		Phase.COMPLETE:
-			_hud.show_text(
-				"%.1fs    %s    R to restart%s" % [
-					_race_time, _player_status(), _camera_debug()
-				]
-			)
+			_hud.show_text("%s\nR to restart%s" % [_result_line(), _camera_debug()])
+
+
+## Counts the field down to the release. Reads the barrier's own clock rather
+## than keeping a second one, so tapping the barrier early simply ends the
+## countdown instead of leaving it running against a race that already started.
+func _run_countdown() -> void:
+	if _barrier == null or not is_instance_valid(_barrier):
+		return
+
+	var count := ceili(_barrier.time_remaining())
+	if count > COUNTDOWN_FROM or count <= 0:
+		return
+
+	# Counts must be called once each and in descending order; `_countdown_called`
+	# starts at 0, so the first eligible number always passes.
+	if _countdown_called == 0 or count < _countdown_called:
+		_countdown_called = count
+		_hud.shout(str(count), Color(0.95, 0.86, 0.62))
 
 
 ## Camera spike only. Which projection you are looking at is the whole question
@@ -633,6 +722,42 @@ func _live_position() -> String:
 	# Just the place. Whether that is above or below the cut is the standings
 	# column's job, and saying it in two places at once is how a HUD gets busy.
 	return "P%d of %d" % [place, MARBLE_COUNT]
+
+
+## The one line the race ends on.
+##
+## It used to end on "34.6s  finished 8/12  R to restart", which states an
+## outcome without saying what the outcome means. The round eliminates the bottom
+## half (PROJECT.md section 3), so eighth of twelve is not a score, it is being
+## knocked out — and Phase 0's actual success criterion is whether you want to go
+## again, which nothing was ever asking.
+func _result_line() -> String:
+	if _player == null or not is_instance_valid(_player):
+		return "Race over"
+
+	var cut := MARBLE_COUNT / 2
+
+	if _player.state == Marble.State.ELIMINATED:
+		return "You fell.  Knocked out"
+
+	var place := _finish_order.find(_player) + 1
+	if place <= 0:
+		return "Race over"
+
+	var verdict := "Through to the next round" if place <= cut else "Knocked out"
+	return "Finished %s of %d.  %s" % [_ordinal(place), MARBLE_COUNT, verdict]
+
+
+func _ordinal(value: int) -> String:
+	# 11th through 13th are the exceptions the naive rule gets wrong; the field
+	# is twelve, so this is not hypothetical.
+	var suffix := "th"
+	if value % 100 < 11 or value % 100 > 13:
+		match value % 10:
+			1: suffix = "st"
+			2: suffix = "nd"
+			3: suffix = "rd"
+	return "%d%s" % [value, suffix]
 
 
 func _player_status() -> String:

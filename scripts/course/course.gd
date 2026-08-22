@@ -46,3 +46,16 @@ func finish_width() -> float:
 ## How wide the starting barrier has to be to close the track.
 func start_width() -> float:
 	return 6.8
+
+
+## Signed distance, in metres, from a position to the far edge of the course's
+## jump: negative while short of the landing, positive once past it. `INF` when
+## the position is nowhere near a jump, and for courses that have none.
+##
+## The race watches the sign flip to spot a marble that only just got across —
+## the best moment the course produces and, until this existed, one that passed
+## without comment. It lives here because only the course knows where its own
+## landing edge is, and on a course whose gap is not square to the track it
+## depends on where across the marble is, not only how far along.
+func jump_clearance(_position: Vector3) -> float:
+	return INF

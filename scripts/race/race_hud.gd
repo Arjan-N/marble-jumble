@@ -28,10 +28,18 @@ const NOTICE_FADE := 0.7
 ## the marble's own colour as a dot.
 const STANDINGS_FONT := 19
 
+## The countdown and the release. Big and centred rather than another line in the
+## corner: these are the two moments the race asks you to look up for, and a
+## countdown you have to hunt for is not a countdown.
+const SHOUT_FONT := 110
+const SHOUT_SECONDS := 0.85
+
 var _status: Label
 var _notice: Label
+var _shout: Label
 var _standings: RichTextLabel
 var _notice_left: float = 0.0
+var _shout_left: float = 0.0
 
 
 static func create() -> RaceHUD:
@@ -45,7 +53,22 @@ func _build() -> void:
 	_status = _make_label(Vector2(24, 20), 22)
 	_notice = _make_label(Vector2(24, 96), 20)
 	_notice.modulate.a = 0.0
+	_build_shout()
 	_build_standings()
+
+
+func _build_shout() -> void:
+	_shout = Label.new()
+	_shout.add_theme_font_size_override("font_size", SHOUT_FONT)
+	_shout.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.75))
+	_shout.add_theme_constant_override("outline_size", 14)
+	_shout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Full width so centring is the viewport's, not a guess at the design size.
+	_shout.anchor_right = 1.0
+	_shout.offset_top = 300.0
+	_shout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shout.modulate.a = 0.0
+	add_child(_shout)
 
 
 ## Anchored to the right edge rather than positioned, because the design space is
@@ -112,15 +135,27 @@ func _make_label(at: Vector2, size: int) -> Label:
 
 
 func _process(delta: float) -> void:
-	if _notice_left <= 0.0:
-		return
+	if _notice_left > 0.0:
+		_notice_left -= delta
+		if _notice_left <= 0.0:
+			_notice.text = ""
+			_notice.modulate.a = 0.0
+		else:
+			_notice.modulate.a = minf(_notice_left / NOTICE_FADE, 1.0)
 
-	_notice_left -= delta
-	if _notice_left <= 0.0:
-		_notice.text = ""
-		_notice.modulate.a = 0.0
-	else:
-		_notice.modulate.a = minf(_notice_left / NOTICE_FADE, 1.0)
+	if _shout_left > 0.0:
+		_shout_left -= delta
+		if _shout_left <= 0.0:
+			_shout.text = ""
+			_shout.modulate.a = 0.0
+		else:
+			# Fades and swells over its whole life, so each count lands rather
+			# than sitting there — a number that simply appears and vanishes at
+			# full opacity reads as a HUD element, not as a beat.
+			var t := _shout_left / SHOUT_SECONDS
+			_shout.modulate.a = t
+			_shout.scale = Vector2.ONE * (1.35 - 0.35 * t)
+			_shout.pivot_offset = _shout.size * 0.5
 
 
 func show_text(text: String) -> void:
@@ -137,7 +172,19 @@ func announce(text: String, colour: Color = Color.WHITE) -> void:
 	_notice_left = NOTICE_SECONDS
 
 
+## For the countdown and the release only. Anything that shouts every few seconds
+## stops being a shout.
+func shout(text: String, colour: Color = Color.WHITE) -> void:
+	_shout.text = text
+	_shout.add_theme_color_override("font_color", colour)
+	_shout.modulate.a = 1.0
+	_shout_left = SHOUT_SECONDS
+
+
 func clear_notice() -> void:
+	_shout_left = 0.0
+	_shout.text = ""
+	_shout.modulate.a = 0.0
 	_notice_left = 0.0
 	_notice.text = ""
 	_notice.modulate.a = 0.0

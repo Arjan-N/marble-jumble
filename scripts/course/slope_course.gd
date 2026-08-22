@@ -1124,6 +1124,38 @@ func fall_threshold_y() -> float:
 	return _point(LENGTH).y - 20.0
 
 
+## Which lane of the staggered landing edge a lateral offset falls in, and how
+## long that lane's jump is. Lateral is world X because this course is straight
+## in plan — that is exactly the assumption a turning course would have to
+## replace, and the only place in the file that leans on it.
+func _lane_gap(lateral: float) -> float:
+	var lane_width := HALF_WIDTH * 2.0 / float(GAP_LANES)
+	var lane := clampi(
+		int((lateral + HALF_WIDTH) / lane_width), 0, GAP_LANES - 1
+	)
+	return lerpf(GAP_MAX, GAP_MIN, float(lane) / float(GAP_LANES - 1))
+
+
+func jump_clearance(position: Vector3) -> float:
+	if curve == null:
+		return INF
+
+	var lip := JUMP_AT * LENGTH
+	var offset := curve.get_closest_offset(position)
+	# Only in the neighbourhood of the jump; everywhere else there is nothing to
+	# have cleared.
+	if offset < lip - 3.0 or offset > lip + GAP_RECOVER + 3.0:
+		return INF
+
+	# The bridge is not a jump. A marble threading it crosses the same stretch of
+	# course without ever leaving the ground, and would otherwise register the
+	# most obvious near miss on the course for doing the safe thing.
+	if position.x < -HALF_WIDTH + BRIDGE_WIDTH:
+		return INF
+
+	return offset - (lip + _lane_gap(position.x))
+
+
 func finish_width() -> float:
 	return HALF_WIDTH * 2.0
 
