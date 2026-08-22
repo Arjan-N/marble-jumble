@@ -117,7 +117,7 @@ const CHANNEL_RISE := 1.05
 ## friction band with an evocative name and the same cross-section as everything
 ## else; narrow *and* deep, the sides come up past a marble's own height and
 ## there is no camber escape from it — you are in there until it ends.
-const LOG_RISE := 1.6
+const LOG_RISE := 0.3
 const LOG_AT := 0.72
 const LOG_LENGTH := 22.0
 ## Length of one piece of the fixtures that are still built from boxes — the
@@ -236,8 +236,26 @@ const TRUNK_ROWS := [
 	{"at": 0.46, "count": 2, "lean": 0.15},
 	{"at": 0.86, "count": 2, "lean": 0.2},
 ]
-const TRUNK_RADIUS := 0.85
+const TRUNK_RADIUS := 0.8
 const TRUNK_HEIGHT := 4.5
+## Radius of the flared root the trunk stands on, and how tall that flare is.
+##
+## A vertical trunk on a dished floor is a marble trap and the geometry says so:
+## a marble that loses its speed against one is being pushed into it by the only
+## gradient available, and the trunk is blocking the single direction that could
+## restart it. Nothing about the course can fix that, because the course is doing
+## the right thing — the obstacle is the problem.
+##
+## A flare removes the vertical face at marble height. Anything that comes to
+## rest against this is resting on a 24 degree slope instead, which pushes it
+## sideways and out. The trunk above the flare can stay vertical; a marble is
+## never up there at rest.
+##
+## It is what the canyon's pillars have as a decorative skirt, made load-bearing:
+## there it is a mesh child and collides with nothing, which looks the same and
+## does none of this.
+const TRUNK_FLARE := 1.25
+const TRUNK_FLARE_HEIGHT := 1.0
 ## Every gap a marble can be pushed into must clear this. A marble is 0.9m
 ## across; the canyon learned this the expensive way.
 const MIN_GAP := 1.5
@@ -268,11 +286,11 @@ const STONES_AT := 0.70
 ## guarantee.
 const KICKER_AT := 0.63
 const KICKER_LENGTH := 6.0
-const KICKER_RISE := 0.65
+const KICKER_RISE := 1.25
 ## Wide enough that it cannot be bridged, which is the constraint the stones
 ## could never satisfy: comfortably over a marble's 0.9m, so anything that does
 ## not fly it goes in.
-const JUMP_GAP := 2.4
+const JUMP_GAP := 3.2
 ## Minimum speed the boost guarantees into the ramp. Sized against the gap: at
 ## this speed off a 0.65m ramp a marble carries comfortably past 2.4m, so the
 ## jump is something the course does *to* the field rather than a filter that
@@ -448,7 +466,17 @@ func _kicker_lift(s: float) -> float:
 	if s <= from_s:
 		return 0.0
 	if s < lip:
-		return KICKER_RISE * smoothstep(0.0, 1.0, (s - from_s) / KICKER_LENGTH)
+		# Squared, not smoothstepped. Smoothstep flattens at *both* ends, so the
+		# last metre of ramp was parallel to the hillside it sits on and marbles
+		# rolled off the lip travelling straight down the slope — a ramp that was
+		# geometrically a ramp and did nothing whatsoever. A parabola is flat where
+		# it meets the floor, which is the end that has to be smooth, and steepest
+		# at the lip, which is the end that has to throw.
+		#
+		# The launch angle is therefore atan(2 * KICKER_RISE / KICKER_LENGTH) above
+		# the local slope — the rise is not "how high", it is "how hard".
+		var t := (s - from_s) / KICKER_LENGTH
+		return KICKER_RISE * t * t
 	# Past the gap the landing sinks back to the channel's own level. Left raised,
 	# the ramp would lift every remaining metre of course with it and the marble
 	# would be jumping *up* onto the far side.
@@ -732,12 +760,15 @@ func _build_trunks() -> void:
 ## the final say.
 func _trunk_offsets(s: float, count: int, lean: float) -> Array:
 	var half_width := _half_width_at(s)
-	var gap := (half_width * 2.0 - count * TRUNK_RADIUS * 2.0) / float(count + 1)
+	# Measured against the flare, not the trunk: the flare is what a marble meets
+	# at floor level, and spacing to the narrower shaft would leave gaps that only
+	# exist above the field.
+	var gap := (half_width * 2.0 - count * TRUNK_FLARE * 2.0) / float(count + 1)
 	_assert_gap(gap - absf(lean) * gap, "trunk row at %.2f" % (s / LENGTH))
 
 	var offsets := []
 	for i in count:
-		var centre := -half_width + gap * float(i + 1) + TRUNK_RADIUS * float(i * 2 + 1)
+		var centre := -half_width + gap * float(i + 1) + TRUNK_FLARE * float(i * 2 + 1)
 		offsets.append(centre + lean * gap * 0.5)
 	return offsets
 
@@ -768,7 +799,7 @@ func _add_trunk(s: float, offset: float) -> void:
 
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = TRUNK_RADIUS * 0.88
-	mesh.bottom_radius = TRUNK_RADIUS * 1.15
+	mesh.bottom_radius = TRUNK_RADIUS
 	mesh.height = TRUNK_HEIGHT
 	mesh.radial_segments = 8
 	var visual := MeshInstance3D.new()
@@ -776,7 +807,36 @@ func _add_trunk(s: float, offset: float) -> void:
 	visual.material_override = _material(TRUNK_COLOUR)
 	body.add_child(visual)
 
+	_add_flare(body, lift)
 	add_child(body)
+
+
+## The flared root, as a real collider rather than decoration. A convex hull off
+## a tapered cylinder, because Godot has no cone shape and a stack of cylinders
+## would reintroduce the steps this course has spent all day removing.
+func _add_flare(body: StaticBody3D, lift: float) -> void:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = TRUNK_RADIUS
+	mesh.bottom_radius = TRUNK_FLARE
+	mesh.height = TRUNK_FLARE_HEIGHT
+	mesh.radial_segments = 10
+
+	# Positioned relative to the trunk's own centre, which sits half a trunk above
+	# the surface — so the flare's base lands on the floor.
+	var at := Vector3(
+		0.0, -TRUNK_HEIGHT * 0.5 + TRUNK_FLARE_HEIGHT * 0.5, 0.0
+	)
+
+	var collider := CollisionShape3D.new()
+	collider.shape = mesh.create_convex_shape()
+	collider.position = at
+	body.add_child(collider)
+
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = _material(ROOT_COLOUR)
+	visual.position = at
+	body.add_child(visual)
 
 
 ## The boost, sitting on the approach to the kicker rather than on it.
