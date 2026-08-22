@@ -12,40 +12,27 @@ are decisions already implied by the spec, waiting on work.
 
 ## Sound
 
-**Status:** not started. **Wanted since:** 2026-08-21.
+**Status:** implemented, 2026-08-22. **Wanted since:** 2026-08-21.
 
-The prototype is silent, and this is the largest single gap between what it is
-and what it is trying to be.
+`SoundManager`/`SoundSynth` give the player marble's impacts a procedurally
+synthesised tone (pitch by impact energy), triggered off `Marble.collided`.
+Synthesis was chosen over sampled assets to stay code-only and vary per hit
+rather than audibly repeat across twelve marbles colliding constantly.
 
-`PROJECT.md` §2.3 says physics is the entertainment and lists collisions first.
-A marble race is a *tactile* thing, and almost all of that is carried by sound:
-the click of glass on glass, a rumble on rough stone that goes quiet on the
-smooth sections, the clack of a bumper arm connecting, the moment a marble stops
-making noise because it has left the track. None of it exists. Watching the
-current build with the volume up and the volume down is the same experience.
+**Not yet done:** timbre does not vary by surface. `SlopeCourse.SURFACES`
+carries surface identity but it is not exposed through `Course`, so
+`SoundManager` cannot yet ask what a marble is rolling on. Also only the
+player's own impacts sound — the other eleven marbles are silent.
 
-It would do more for how the race *feels* than any further geometry. The course
-now has a shaped profile, mixed surfaces, a split, a staggered jump and a
-bridge; adding a seventh feature is worth less than making the six that exist
-audible.
+## Screens: round-start and shop
 
-**Not blocked by any decision.** Audio is not on the Phase 0 non-goals list
-(§10 of the phase spec), and nothing in `DECISIONS.md` speaks to it.
+**Status:** not started. **Wanted since:** 2026-08-22, when the home screen
+(below) needed somewhere for its buttons to lead.
 
-**Open question, needs an answer before starting:** real assets or synthesised?
-
-- *Assets* sound better and cost sourcing, licensing and repository weight, and
-  the repo currently has no binary content at all.
-- *Synthesis* keeps the project code-only and procedurally variable — pitch by
-  impact energy, timbre by surface — which suits twelve marbles colliding
-  constantly far better than a handful of fixed samples that will audibly
-  repeat. It is more work and it can sound cheap if done badly.
-
-Synthesis is probably right for a prototype whose whole point is that every
-collision is different. Worth prototyping one impact sound before committing.
-
-**Where it would hook in:** `Marble` would need contact reporting
-(`max_contacts_reported`, `contact_monitor`), which is currently off and is not
-free at twelve bodies — measure before assuming it is fine. Surface identity for
-timbre already exists in `SlopeCourse.SURFACES` but is not exposed through
-`Course`; it would need a way to ask what a marble is rolling on.
+`docs/ui-reference/UI_VISUAL_REFERENCES.md` specifies three screens: home,
+round-start (course carousel + 4x3 marble grid, no marble selection), and
+shop (cosmetic marble/course unlocks). Only home is built. `HomeScreen`'s
+START button skips straight to the race (`scenes/main.tscn`); MARBLE and
+STORE show a "Coming soon" toast. There is also no save/profile system yet,
+so the home screen's rolling marble uses a hardcoded stand-in colour rather
+than the player's actual customisation.

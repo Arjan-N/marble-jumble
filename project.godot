@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Marble Jumble"
 config/description="Phase 0 physics prototype. See docs/PHASE_0_TECHNICAL_SPEC.md."
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]
