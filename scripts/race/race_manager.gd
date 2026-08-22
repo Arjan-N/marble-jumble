@@ -52,7 +52,7 @@ const PLAYER_NAME := "You"
 ## get the Canyon back.
 ## Preloaded by path rather than named directly: a global class name is not a
 ## constant expression, so `const COURSE := SlopeCourse` does not parse.
-const COURSE: GDScript = preload("res://scripts/course/slope_course.gd")
+const COURSE: GDScript = preload("res://scripts/course/jungle_course.gd")
 
 enum Phase { SETTLING, RACING, COMPLETE }
 

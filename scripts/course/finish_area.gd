@@ -30,15 +30,23 @@ func _build() -> void:
 	collider.shape = shape
 	add_child(collider)
 
+	# A faint gate rather than a solid green block. At 0.35 alpha over a six-metre
+	# box this tinted a quarter of the frame at exactly the moment the race ends
+	# and the results go up — the one screen the player is actually meant to read.
+	# Kept visible at all because the finish should be somewhere you can see
+	# coming, and unshaded so it reads as a marker rather than as geometry.
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.3, 0.9, 0.5, 0.35)
+	material.albedo_color = Color(0.55, 0.95, 0.65, 0.10)
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	var mesh := BoxMesh.new()
 	mesh.size = _size
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
 	visual.material_override = material
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(visual)
 
 	body_entered.connect(_on_body_entered)
