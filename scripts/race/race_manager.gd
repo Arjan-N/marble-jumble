@@ -1,11 +1,12 @@
 extends Node3D
 
-## Phase 0 race orchestration.
+## Race and tournament orchestration.
 ##
-## Owns the sequence only: build course, settle the field, release, watch,
-## resolve. It deliberately knows nothing about tournaments, rounds,
-## elimination brackets, progression or currency, none of which exist in
-## Phase 0 (spec section 10).
+## Owns the sequence: build course, settle the field, release, watch, resolve,
+## repeat with survivors on a new course. Progression, currency and the
+## transition spectacle (course roulette, elimination reveal) from PROJECT.md
+## section 4 still don't live here — this is the plain version: a leaderboard
+## and a short pause between rounds.
 ##
 ## Physics never touches game state directly. Marbles are simulated; this node
 ## observes them through triggers and reports what happened.
@@ -46,24 +47,63 @@ const COUNTDOWN_FROM := 3
 ## player never has to look up.
 const PLAYER_NAME := "You"
 
-## Which course the prototype runs. `SlopeCourse` is a plain straight test track
-## deliberately too simple to be the cause of anything; `CourseBuilder` is the
-## Canyon, which currently stalls its field around ratio 0.66. Swap this line to
-## get the Canyon back.
-## Preloaded by path rather than named directly: a global class name is not a
-## constant expression, so `const COURSE := SlopeCourse` does not parse.
-const COURSE: GDScript = preload("res://scripts/course/jungle_course.gd")
+## Every course a round may run on. Preloaded by path rather than named
+## directly: a global class name is not a constant expression, so an array of
+## bare class names does not parse.
+##
+## `CourseBuilder` (the curved Canyon) is included as-is even though its own
+## comments note it can stall its field around ratio 0.66 — a known rough edge
+## in the pool, not a reason to quietly drop it.
+## `course_builder.gd` (the curved Canyon) is deliberately absent: its field
+## reliably stalls part-way down and almost nobody finishes. Investigated and
+## not yet solved — the centreline itself is clean (monotonic descent, minimum
+## grade ~5 degrees, measured with `tools/probe_curve.gd`), and removing the
+## split divider does not fix it either, so the cause is elsewhere in the swept
+## geometry. Left in the repo to be fixed later rather than deleted.
+const COURSE_POOL: Array[GDScript] = [
+	preload("res://scripts/course/slope_course.gd"),
+	preload("res://scripts/course/jungle_course.gd"),
+	preload("res://scripts/course/orbital_course.gd"),
+]
 
 enum Phase { SETTLING, RACING, COMPLETE }
 
 var _course: Course
+var _active_course_script: GDScript
 var _barrier: StartBarrier
 var _camera: ChaseCamera
 var _hud: RaceHUD
+var _sound: SoundManager
+var _cut_marker: CutMarker
+var _cut_marker_offset := -1.0
+var _rank_tag: RankTag
+## Set when a new field spawns, so the tag jumps to the new player marble
+## instead of sliding across the course from where the last round left it.
+var _rank_tag_needs_snap := true
 var _tuning: MarbleTuning
+
+## Carries survivors' cosmetic identity (colour, name, is_player) from one
+## round to the next. Empty means "start a fresh tournament" — `_spawn_field`
+## generates a full field of `MARBLE_COUNT` when it finds nothing here.
+var _roster: Array = []
+var _round_number := 1
+## "" while the tournament is ongoing; "won" or "eliminated" once the player's
+## run through it is decided. Only ever set in `_resolve_round`.
+var _tournament_outcome := ""
 
 var _marbles: Array[Marble] = []
 var _player: Marble
+## Set once the player's own marble finishes or falls, so the HUD can switch to
+## the full leaderboard while the rest of the field is still settling — there
+## is nothing left for the player to watch about their own run at that point.
+var _player_done := false
+
+## The staggered entrance: which marbles are still frozen, waiting their turn,
+## in the order they will be released.
+const SETTLE_STAGGER := 0.12
+var _settle_order: Array[Marble] = []
+var _settle_index := 0
+var _settle_elapsed := 0.0
 var _finish_order: Array[Marble] = []
 
 var _phase: Phase = Phase.SETTLING
@@ -114,6 +154,27 @@ var _last_contenders: int = -1
 ## this the notice line strobes.
 const OVERTAKE_COOLDOWN := 1.6
 
+## Half the field finishing is what ends a round (PROJECT.md section 3: the
+## top half advance); cutting the moment that happens would strand whoever is
+## mid-course, so stragglers get this long to land, finish or fall before the
+## round is scored. Falling never buys a place, however long the grace runs.
+const ROUND_GRACE_PERIOD := 6.0
+## Negative while no round has reached its 50% mark yet.
+var _grace_timer := -1.0
+
+## Backstop for a course whose field genuinely stalls rather than merely runs
+## slow — `course_builder.gd`'s own comments document exactly that, around
+## ratio 0.66, and confirmed reproducing it: without this, a round where
+## nobody ever crosses the line waits forever for a 50%-finished mark that
+## never arrives. Well above the ~20-30s target for a healthy course.
+const MAX_ROUND_DURATION := 75.0
+
+## How long the result screen holds before the next round's field spawns.
+const NEXT_ROUND_DELAY := 3.0
+## Longer than the countdown/GO shout (0.85s) — "QUALIFIED!" needs a moment to
+## actually be read, not just flash past. Comfortably inside NEXT_ROUND_DELAY.
+const OUTCOME_SHOUT_SECONDS := 1.8
+
 
 func _ready() -> void:
 	_tuning = MarbleTuning.new()
@@ -141,6 +202,20 @@ func _physics_process(delta: float) -> void:
 	if _phase == Phase.RACING:
 		_race_time += delta
 		_check_for_falls()
+		if _grace_timer < 0.0 and _race_time >= MAX_ROUND_DURATION:
+			_resolve_round()
+
+	if _grace_timer > 0.0:
+		_grace_timer -= delta
+		if _grace_timer <= 0.0:
+			_grace_timer = 0.0
+			_resolve_round()
+
+	if _phase == Phase.SETTLING and _settle_index < _settle_order.size():
+		_settle_elapsed += delta
+		if _settle_elapsed >= SETTLE_STAGGER:
+			_settle_elapsed = 0.0
+			_release_next_marble()
 
 	_overtake_cooldown = maxf(_overtake_cooldown - delta, 0.0)
 
@@ -151,6 +226,9 @@ func _physics_process(delta: float) -> void:
 		if _phase == Phase.RACING:
 			_check_for_overtakes()
 			_check_for_near_misses()
+
+	_update_cut_marker(delta)
+	_update_rank_tag(delta)
 
 	if DEBUG_TRACE:
 		_trace_accumulator += delta
@@ -188,9 +266,11 @@ func _physics_process(delta: float) -> void:
 
 
 func _start_race() -> void:
+	_teardown_race()
 	_rng.randomize()
 
-	_course = COURSE.new()
+	_active_course_script = _pick_course()
+	_course = _active_course_script.new()
 	_course.name = "Course"
 	add_child(_course)
 	_course.build()
@@ -202,12 +282,31 @@ func _start_race() -> void:
 
 	_phase = Phase.SETTLING
 	_race_time = 0.0
+	_player_done = false
+	_grace_timer = -1.0
 
 
-## Tears the race down completely and rebuilds it. Rebuilding rather than
-## repositioning is what guarantees the clean restart state the spec asks for:
-## no residual velocities, no half-open barrier, no stale finish order.
-func _restart() -> void:
+## Picks the next round's course at random, excluding whichever one just ran
+## where there's a choice — "a random *other* course" rather than a coin flip
+## that can repeat itself.
+func _pick_course() -> GDScript:
+	var pool := COURSE_POOL.duplicate()
+	if _active_course_script != null and pool.size() > 1:
+		pool.erase(_active_course_script)
+	return pool[_rng.randi_range(0, pool.size() - 1)]
+
+
+## Frees whatever the previous race left behind and clears every per-race
+## transient, so the very first race, a round transition, and a manual restart
+## all begin from the same clean slate — only `_start_race` needs to know that.
+func _teardown_race() -> void:
+	# `queue_free` only defers deletion; a barrier still mid-teardown keeps
+	# running `_process` and can still auto-open on its own timer, which would
+	# fire this same handler against the *new* race's marbles. Disconnecting
+	# first makes the old barrier inert rather than racing the deferred free.
+	if _barrier != null and is_instance_valid(_barrier) and _barrier.opened.is_connected(_on_barrier_opened):
+		_barrier.opened.disconnect(_on_barrier_opened)
+
 	for node in [_course, _barrier, _camera]:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
@@ -226,18 +325,73 @@ func _restart() -> void:
 	_overtake_cooldown = 0.0
 	_countdown_called = 0
 	_clearance.clear()
+	_cut_marker_offset = -1.0
 
 	if _hud != null and is_instance_valid(_hud):
 		_hud.clear_notice()
 
+
+## A full reset rather than a round transition: clears the roster and round
+## count too, so this starts a brand-new tournament instead of continuing a
+## shrunken one.
+func _restart() -> void:
+	_roster = []
+	_round_number = 1
+	_tournament_outcome = ""
+	_active_course_script = null
 	_start_race()
 
 
+## Builds the field from `_roster` — the survivors of the previous round, or
+## (when empty, meaning a tournament is just starting) a freshly generated
+## full field.
 func _spawn_field() -> void:
-	var spawns := _course.get_spawn_transforms(MARBLE_COUNT, _rng)
+	if _roster.is_empty():
+		_roster = _generate_initial_roster()
 
-	# The player's slot is drawn at random. Identification comes from the
-	# marble's own look, not from a fixed, learnable position.
+	var count := _roster.size()
+	var spawns := _course.get_spawn_transforms(count, _rng)
+
+	for i in count:
+		var entry: Dictionary = _roster[i]
+		var marble := Marble.create(i, _tuning, entry["colour"], entry["is_player"], entry["name"])
+
+		add_child(marble)
+		marble.reset_to(spawns[i])
+		# Held here rather than let loose all at once — released in
+		# `_release_next_marble` so the field arrives like participants taking
+		# their place, not a single simultaneous drop.
+		marble.freeze = true
+		_marbles.append(marble)
+
+		if entry["is_player"]:
+			_player = marble
+			marble.collided.connect(_on_player_collided)
+
+	_settle_order = _marbles.duplicate()
+	_settle_order.shuffle()
+	_settle_index = 0
+	_settle_elapsed = 0.0
+	_release_next_marble()
+
+
+## Unfreezes the next marble in `_settle_order`, so it rolls in on its own
+## rather than as part of the whole field. Shuffled rather than in spawn order,
+## so the same seat is not always first to arrive.
+func _release_next_marble() -> void:
+	if _settle_index >= _settle_order.size():
+		return
+	var marble: Marble = _settle_order[_settle_index]
+	if is_instance_valid(marble):
+		marble.freeze = false
+	_settle_index += 1
+
+
+## A fresh field of `MARBLE_COUNT`: one random player slot, the rest drawn from
+## `OPPONENT_NAMES`. Only ever called when `_roster` is empty, i.e. the start
+## of a tournament.
+func _generate_initial_roster() -> Array:
+	var roster: Array = []
 	var player_index := _rng.randi_range(0, MARBLE_COUNT - 1)
 
 	var names := OPPONENT_NAMES.duplicate()
@@ -251,14 +405,9 @@ func _spawn_field() -> void:
 		if not is_player:
 			marble_name = names[next_name]
 			next_name += 1
-		var marble := Marble.create(i, _tuning, colour, is_player, marble_name)
+		roster.append({"colour": colour, "name": marble_name, "is_player": is_player})
 
-		add_child(marble)
-		marble.reset_to(spawns[i])
-		_marbles.append(marble)
-
-		if is_player:
-			_player = marble
+	return roster
 
 
 func _opponent_colour(index: int) -> Color:
@@ -298,8 +447,17 @@ func _on_barrier_opened() -> void:
 	for marble in _marbles:
 		marble.state = Marble.State.RACING
 		marble.sleeping = false
+		# A tap can land before the staggered entrance (`_release_next_marble`)
+		# has freed every marble; nothing else ever clears `freeze`, so a marble
+		# still waiting its turn would otherwise sit frozen through the whole race.
+		marble.freeze = false
 
 	_hud.shout("GO", Color(0.72, 0.95, 0.62))
+	_sound.play_release()
+
+
+func _on_player_collided(speed: float) -> void:
+	_sound.play_impact(speed)
 
 
 # --- Standings ----------------------------------------------------------------
@@ -315,6 +473,11 @@ func _on_barrier_opened() -> void:
 ## a race that only ranks correctly on straight courses would be a trap for
 ## whoever writes the third one.
 func _rank_field() -> void:
+	# Guards against a marble that outlived a restart: `queue_free` defers the
+	# actual deletion, and a marble freed but still referenced here used to
+	# crash every standings update afterwards rather than just the one frame.
+	_marbles = _marbles.filter(func(marble: Marble) -> bool: return is_instance_valid(marble))
+
 	var progress := {}
 	for marble in _marbles:
 		progress[marble] = _course_offset(marble)
@@ -341,6 +504,89 @@ func _rank_field() -> void:
 	_standings.append_array(fallen)
 
 
+## How fast the displayed marker chases its target offset, per second. Not
+## instant on purpose: which marble holds the cut only refreshes with the
+## standings (every `STANDINGS_INTERVAL`), and snapping straight to a
+## different marble's position on that cadence is what read as rough — this
+## turns both that and ordinary per-tick motion into one continuous slide.
+const CUT_MARKER_SMOOTHING := 8.0
+
+## Places the cut-line marker at whichever marble currently holds the last
+## surviving place, so the boundary the standings column already names is
+## visible on the track itself, not only as a row of text.
+##
+## Runs every physics tick, not just on the standings' own refresh cadence —
+## sampling the curve is cheap for one marble, and doing it at full physics
+## rate is what makes the marker glide instead of stepping.
+func _update_cut_marker(delta: float) -> void:
+	if _cut_marker == null or not is_instance_valid(_cut_marker):
+		return
+
+	var cut_index := _marbles.size() / 2 - 1
+	var course_ready := _course != null and is_instance_valid(_course) and _course.curve != null
+	if _phase != Phase.RACING or not course_ready or cut_index >= _standings.size():
+		_cut_marker.visible = false
+		_cut_marker_offset = -1.0
+		return
+
+	var marble: Marble = _standings[cut_index]
+	if marble == null or not is_instance_valid(marble):
+		_cut_marker.visible = false
+		return
+
+	var length := _course.curve.get_baked_length()
+	var target := clampf(_course_offset(marble), 0.0, length)
+
+	if _cut_marker_offset < 0.0:
+		_cut_marker_offset = target
+	else:
+		_cut_marker_offset = lerpf(
+			_cut_marker_offset, target, clampf(delta * CUT_MARKER_SMOOTHING, 0.0, 1.0)
+		)
+
+	var at := _course.curve.sample_baked(_cut_marker_offset)
+	var ahead := _course.curve.sample_baked(minf(_cut_marker_offset + 0.5, length))
+	var behind := _course.curve.sample_baked(maxf(_cut_marker_offset - 0.5, 0.0))
+	var forward := ahead - behind
+	if forward.is_zero_approx():
+		forward = Vector3.FORWARD
+
+	_cut_marker.place(at, forward.normalized(), _course.finish_width())
+	_cut_marker.visible = true
+
+
+## Keeps the player's place floating above their own marble.
+##
+## Hidden outside `Phase.RACING` for the same reason `_update_hud` shows no
+## standings while the field is settling: the pre-race order is the arbitrary one
+## the marbles happen to be ranked in, and a tag reading "7th" over a stationary
+## grid says something untrue. It goes away again once the player has finished or
+## fallen — there is no place left to hold.
+func _update_rank_tag(delta: float) -> void:
+	if _rank_tag == null or not is_instance_valid(_rank_tag):
+		return
+
+	var racing := (
+		_phase == Phase.RACING
+		and not _player_done
+		and _player != null
+		and is_instance_valid(_player)
+		and _player.state == Marble.State.RACING
+	)
+	if not racing:
+		_rank_tag.visible = false
+		_rank_tag_needs_snap = true
+		return
+
+	# Reads the cached ranking rather than recomputing one — `_player_place` is
+	# documented as free to call every frame, and a second ranking path would be
+	# a second thing to keep in step with the standings column.
+	_rank_tag.set_place(_player_place())
+	_rank_tag.follow(_player.global_position, _camera, delta, _rank_tag_needs_snap)
+	_rank_tag_needs_snap = false
+	_rank_tag.visible = true
+
+
 ## Four rows, not twelve: the leader, and the player with whoever is immediately
 ## either side of them.
 ##
@@ -358,18 +604,17 @@ func _standings_rows() -> Array:
 		return []
 
 	# Zero-based index of the last marble that survives the round. PROJECT.md
-	# section 3: twelve start, the top six go through.
-	var cut_index := MARBLE_COUNT / 2 - 1
+	# section 3: the top half go through, whatever the field's current size is.
+	var cut_index := _marbles.size() / 2 - 1
 
-	# Once the race is over the whole field goes up. The four-row rule exists
-	# because a standings column competes with a race for attention, and at this
-	# point there is no race left to compete with — this *is* what the player is
-	# looking at, and "who else survived" is the question the round ends on.
-	if _phase == Phase.COMPLETE:
+	# The full board goes up once there is nothing left to watch for the
+	# player specifically — either the round is fully over, or their own run
+	# through it is (finished or fallen) and the rest is stragglers.
+	if _phase == Phase.COMPLETE or _player_done:
 		var all := {}
 		for index in _standings.size():
 			all[index] = true
-		return _rows_for(all, MARBLE_COUNT / 2 - 1, true)
+		return _rows_for(all, cut_index, true)
 
 	var wanted := {0: true}
 	var player_index := _standings.find(_player)
@@ -475,10 +720,12 @@ func _check_for_overtakes() -> void:
 		var passed := _neighbour(place)  # Now directly behind the player.
 		if passed != null:
 			_announce_overtake("Passed %s" % passed.marble_name, passed.colour)
+			_pop_comic("ZOOM!", PLAYER_COLOUR)
 	else:
 		var passer := _neighbour(place - 2)  # Now directly ahead.
 		if passer != null:
 			_announce_overtake("%s passed you" % passer.marble_name, passer.colour)
+			_pop_comic("OOF!", passer.colour)
 
 
 ## Calls a marble that got over the gap with almost nothing to spare.
@@ -510,6 +757,7 @@ func _check_for_near_misses() -> void:
 		_overtake_cooldown = OVERTAKE_COOLDOWN
 		if marble.is_player:
 			_hud.announce("You just made it", PLAYER_COLOUR)
+			_pop_comic("PHEW!", PLAYER_COLOUR)
 		else:
 			_hud.announce("%s just made it" % marble.marble_name, marble.colour)
 
@@ -525,6 +773,25 @@ func _announce_overtake(text: String, colour: Color) -> void:
 	_overtake_cooldown = OVERTAKE_COOLDOWN
 	if _hud != null and is_instance_valid(_hud):
 		_hud.announce(text, colour)
+
+
+## Anchored to the player's own marble regardless of which marble triggered the
+## event — the camera always keeps the player on screen, an opponent might not
+## be, and the pop is meant to land on the marble the child watching is
+## actually tracking.
+func _pop_comic(text: String, colour: Color) -> void:
+	if _hud == null or not is_instance_valid(_hud):
+		return
+	if _camera == null or not is_instance_valid(_camera):
+		return
+	if _player == null or not is_instance_valid(_player):
+		return
+
+	# A small lift off the marble's centre so the projected point sits at its
+	# side rather than its middle, then a fixed screen-space nudge to actually
+	# clear it — a 3D offset would vary with camera angle, a 2D one doesn't.
+	var beside := _player.global_position + Vector3(0.0, _tuning.radius * 0.6, 0.0)
+	_hud.show_comic(_camera.unproject_position(beside) + Vector2(42.0, -6.0), text, colour)
 
 
 func _course_offset(marble: Marble) -> float:
@@ -547,7 +814,10 @@ func _player_place() -> int:
 func _on_marble_finished(marble: Marble) -> void:
 	marble.state = Marble.State.FINISHED
 	_finish_order.append(marble)
-	_check_for_completion()
+	if marble.is_player:
+		_sound.play_finish()
+		_player_done = true
+	_check_round_progress()
 
 
 ## Out-of-bounds detection. A simple height threshold is enough for Phase 0;
@@ -561,9 +831,11 @@ func _check_for_falls() -> void:
 			marble.state = Marble.State.ELIMINATED
 			marble.visible = false
 			marble.freeze = true
+			if marble.is_player:
+				_player_done = true
 			_announce_fall(marble)
 
-	_check_for_completion()
+	_check_round_progress()
 
 
 ## A fall used to be a silent deletion: `visible = false` and the marble was
@@ -575,6 +847,9 @@ func _check_for_falls() -> void:
 ## the threshold, which is 20m below the finish — so this is the caption on
 ## something the viewer has just watched, not news.
 func _announce_fall(marble: Marble) -> void:
+	if marble.is_player:
+		_sound.play_fall()
+
 	if _hud == null or not is_instance_valid(_hud):
 		return
 
@@ -591,22 +866,74 @@ func _announce_fall(marble: Marble) -> void:
 		_hud.announce("%s is out — %d left" % [marble.marble_name, left], marble.colour)
 
 
-func _check_for_completion() -> void:
+## Starts the grace period once half the field has finished, and resolves the
+## round immediately if the whole field is already done before that timer
+## would otherwise run out — no point waiting out a grace period for nobody.
+func _check_round_progress() -> void:
+	if _phase == Phase.COMPLETE:
+		return
+
+	var still_racing := false
 	for marble in _marbles:
 		if marble.state == Marble.State.RACING:
-			return
+			still_racing = true
+			break
 
+	if not still_racing:
+		_resolve_round()
+		return
+
+	if _grace_timer < 0.0:
+		var half := _marbles.size() / 2
+		if half > 0 and _finish_order.size() >= half:
+			_grace_timer = ROUND_GRACE_PERIOD
+
+
+## Scores the round, decides the tournament's fate for the player, and — if
+## they survive and it isn't already down to a winner — schedules the next
+## round on a new course with the survivors' roster.
+##
+## Survivors are the top half of `_finish_order` by finish time, per
+## PROJECT.md section 3; falling never counts as finishing, however few
+## marbles actually crossed the line before the grace period ran out.
+func _resolve_round() -> void:
 	if _phase == Phase.COMPLETE:
 		return
 	_phase = Phase.COMPLETE
+	_grace_timer = -1.0
 
-	# The prototype exists to be measured: run length against the 20-30s target
-	# and how many marbles fell are the two numbers Phase 0 is tuning towards.
-	var fallen := MARBLE_COUNT - _finish_order.size()
-	print(
-		"Race complete in %.1fs | finished %d/%d | fell %d | player %s"
-		% [_race_time, _finish_order.size(), MARBLE_COUNT, fallen, _player_status()]
+	var survivor_count := maxi(1, _marbles.size() / 2)
+	var survivors := _finish_order.slice(0, mini(survivor_count, _finish_order.size()))
+	var player_survives := (
+		_player != null and is_instance_valid(_player) and survivors.has(_player)
 	)
+
+	print(
+		"Round %d complete in %.1fs | finished %d/%d | player %s"
+		% [_round_number, _race_time, _finish_order.size(), _marbles.size(), _player_status()]
+	)
+
+	if not player_survives:
+		_tournament_outcome = "eliminated"
+		_hud.shout("ELIMINATED!", Color(0.95, 0.35, 0.35), OUTCOME_SHOUT_SECONDS)
+		return
+	if survivors.size() <= 1:
+		_tournament_outcome = "won"
+		_hud.shout("WINNER!", Color(1.0, 0.85, 0.3), OUTCOME_SHOUT_SECONDS)
+		return
+
+	_hud.shout("QUALIFIED!", Color(0.72, 0.95, 0.62), OUTCOME_SHOUT_SECONDS)
+
+	var next_roster: Array = []
+	for marble in survivors:
+		next_roster.append({
+			"colour": marble.colour, "name": marble.marble_name, "is_player": marble.is_player
+		})
+
+	_round_number += 1
+	await get_tree().create_timer(NEXT_ROUND_DELAY).timeout
+	_roster = next_roster
+	_start_race()
 
 
 # --- Presentation -------------------------------------------------------------
@@ -650,6 +977,20 @@ func _setup_environment() -> void:
 
 	_hud = RaceHUD.create()
 	add_child(_hud)
+	_hud.restart_requested.connect(_restart)
+
+	_sound = SoundManager.create()
+	add_child(_sound)
+
+	_cut_marker = CutMarker.create()
+	_cut_marker.visible = false
+	add_child(_cut_marker)
+
+	# Owned here rather than by the marble: it has to be positioned against the
+	# camera every frame, and it outlives any one round's field.
+	_rank_tag = RankTag.create(PLAYER_COLOUR)
+	_rank_tag.visible = false
+	add_child(_rank_tag)
 
 
 func _update_hud() -> void:
@@ -661,13 +1002,16 @@ func _update_hud() -> void:
 	match _phase:
 		Phase.SETTLING:
 			_run_countdown()
-			_hud.show_text("Tap the barrier to start%s" % _camera_debug())
+			_hud.show_text(
+				"Round %d\nTap the barrier to start%s" % [_round_number, _camera_debug()]
+			)
 		Phase.RACING:
 			_hud.show_text(
-				"%.1fs    %s%s" % [_race_time, _live_position(), _camera_debug()]
+				"Round %d   %.1fs    %s%s"
+				% [_round_number, _race_time, _live_position(), _camera_debug()]
 			)
 		Phase.COMPLETE:
-			_hud.show_text("%s\nR to restart%s" % [_result_line(), _camera_debug()])
+			_hud.show_text("%s\nR restarts the tournament%s" % [_result_line(), _camera_debug()])
 
 
 ## Counts the field down to the release. Reads the barrier's own clock rather
@@ -713,7 +1057,7 @@ func _live_position() -> String:
 		Marble.State.ELIMINATED:
 			return "out"
 		Marble.State.FINISHED:
-			return "finished %d/%d" % [_finish_order.find(_player) + 1, MARBLE_COUNT]
+			return "finished %d/%d" % [_finish_order.find(_player) + 1, _marbles.size()]
 
 	var place := _player_place()
 	if place <= 0:
@@ -721,7 +1065,7 @@ func _live_position() -> String:
 
 	# Just the place. Whether that is above or below the cut is the standings
 	# column's job, and saying it in two places at once is how a HUD gets busy.
-	return "P%d of %d" % [place, MARBLE_COUNT]
+	return "P%d of %d" % [place, _marbles.size()]
 
 
 ## The one line the race ends on.
@@ -735,17 +1079,22 @@ func _result_line() -> String:
 	if _player == null or not is_instance_valid(_player):
 		return "Race over"
 
-	var cut := MARBLE_COUNT / 2
+	var total := _marbles.size()
 
 	if _player.state == Marble.State.ELIMINATED:
-		return "You fell.  Knocked out"
+		return "You fell.  Tournament over"
 
 	var place := _finish_order.find(_player) + 1
 	if place <= 0:
 		return "Race over"
 
-	var verdict := "Through to the next round" if place <= cut else "Knocked out"
-	return "Finished %s of %d.  %s" % [_ordinal(place), MARBLE_COUNT, verdict]
+	var verdict := "Knocked out"
+	if _tournament_outcome == "won":
+		verdict = "Tournament won!"
+	elif _tournament_outcome == "":
+		verdict = "Through to Round %d" % _round_number
+
+	return "Finished %s of %d.  %s" % [_ordinal(place), total, verdict]
 
 
 func _ordinal(value: int) -> String:
@@ -768,6 +1117,6 @@ func _player_status() -> String:
 		Marble.State.ELIMINATED:
 			return "fell"
 		Marble.State.FINISHED:
-			return "finished %d/%d" % [_finish_order.find(_player) + 1, MARBLE_COUNT]
+			return "finished %d/%d" % [_finish_order.find(_player) + 1, _marbles.size()]
 		_:
 			return "racing"

@@ -34,12 +34,19 @@ const STANDINGS_FONT := 19
 const SHOUT_FONT := 110
 const SHOUT_SECONDS := 0.85
 
+## The only touch input the HUD offers: restart, for a platform with no R key.
+## Bottom-right corner, clear of the standings column and the barrier/course
+## geometry a player is meant to be tapping.
+signal restart_requested
+
 var _status: Label
 var _notice: Label
 var _shout: Label
 var _standings: RichTextLabel
+var _restart_button: Button
 var _notice_left: float = 0.0
 var _shout_left: float = 0.0
+var _shout_duration: float = SHOUT_SECONDS
 
 
 static func create() -> RaceHUD:
@@ -55,6 +62,39 @@ func _build() -> void:
 	_notice.modulate.a = 0.0
 	_build_shout()
 	_build_standings()
+	_build_restart_button()
+
+
+## A flat, understated button rather than the engine's default beveled one —
+## PROJECT.md section 8 rules out exactly that kind of generic mobile-game
+## chrome.
+func _build_restart_button() -> void:
+	_restart_button = Button.new()
+	_restart_button.text = "Restart"
+	_restart_button.custom_minimum_size = Vector2(132, 56)
+	_restart_button.anchor_left = 1.0
+	_restart_button.anchor_right = 1.0
+	_restart_button.anchor_top = 1.0
+	_restart_button.anchor_bottom = 1.0
+	_restart_button.offset_left = -152
+	_restart_button.offset_right = -20
+	_restart_button.offset_top = -76
+	_restart_button.offset_bottom = -20
+	_restart_button.add_theme_font_size_override("font_size", 20)
+
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.08, 0.09, 0.11, 0.65)
+	normal.set_corner_radius_all(10)
+	var pressed := StyleBoxFlat.new()
+	pressed.bg_color = Color(0.18, 0.19, 0.22, 0.75)
+	pressed.set_corner_radius_all(10)
+	_restart_button.add_theme_stylebox_override("normal", normal)
+	_restart_button.add_theme_stylebox_override("hover", normal)
+	_restart_button.add_theme_stylebox_override("pressed", pressed)
+	_restart_button.add_theme_stylebox_override("focus", normal)
+
+	_restart_button.pressed.connect(func() -> void: restart_requested.emit())
+	add_child(_restart_button)
 
 
 func _build_shout() -> void:
@@ -152,7 +192,7 @@ func _process(delta: float) -> void:
 			# Fades and swells over its whole life, so each count lands rather
 			# than sitting there — a number that simply appears and vanishes at
 			# full opacity reads as a HUD element, not as a beat.
-			var t := _shout_left / SHOUT_SECONDS
+			var t := _shout_left / _shout_duration
 			_shout.modulate.a = t
 			_shout.scale = Vector2.ONE * (1.35 - 0.35 * t)
 			_shout.pivot_offset = _shout.size * 0.5
@@ -172,13 +212,26 @@ func announce(text: String, colour: Color = Color.WHITE) -> void:
 	_notice_left = NOTICE_SECONDS
 
 
-## For the countdown and the release only. Anything that shouts every few seconds
-## stops being a shout.
-func shout(text: String, colour: Color = Color.WHITE) -> void:
+## For the countdown, the release, and round outcomes. Anything that shouts
+## every few seconds stops being a shout.
+##
+## `duration` defaults to the countdown/release timing; round outcomes pass a
+## longer one (see race_manager.gd) since "QUALIFIED!" needs a moment to land
+## in a way a single digit doesn't.
+func shout(text: String, colour: Color = Color.WHITE, duration: float = SHOUT_SECONDS) -> void:
 	_shout.text = text
 	_shout.add_theme_color_override("font_color", colour)
 	_shout.modulate.a = 1.0
-	_shout_left = SHOUT_SECONDS
+	_shout_left = duration
+	_shout_duration = duration
+
+
+## A comic-style pop at a screen position (from `Camera3D.unproject_position`),
+## for the reactions a text line alone doesn't sell to a younger player.
+func show_comic(screen_pos: Vector2, text: String, colour: Color) -> void:
+	var popup := ComicPopup.create(text, colour)
+	popup.position = screen_pos
+	add_child(popup)
 
 
 func clear_notice() -> void:
