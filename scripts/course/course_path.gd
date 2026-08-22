@@ -37,6 +37,14 @@ extends RefCounted
 ## a course author draws a line and the camber follows it. `DECISIONS.md` allows
 ## curves to be naturally banked; this is what makes that automatic rather than a
 ## thing to remember.
+##
+## ## Roll
+##
+## Added to the bank, and the one thing here a course may author directly. It
+## exists for `OrbitalCourse`, whose duct corkscrews along a straight: a rolled
+## straight has no corner to derive anything from, so there is no version of the
+## rule above that could produce it. Optional, empty by default, and a course
+## that leaves it empty behaves exactly as before.
 
 ## Metres between baked samples. The profiles are integrated rather than solved,
 ## because a smoothed heading has no tidy antiderivative.
@@ -62,6 +70,11 @@ const BANK_LIMIT_DEGREES := 26.0
 ## it carries whatever noise the heading profile has and amplifies it; a track
 ## whose camber flickers is worse than one with none.
 const BANK_BLEND := 14.0
+## Ceiling on derived bank plus authored roll together. Higher than
+## `BANK_LIMIT_DEGREES` because authored roll is deliberate where derived bank is
+## a side effect, but still short of the angle at which the low wall becomes the
+## floor and the section stops reading as the shape it is.
+const ROLL_LIMIT_DEGREES := 40.0
 
 var length: float
 var ramp: float
@@ -69,12 +82,13 @@ var runoff: float
 
 var _pitch: Array = []
 var _heading: Array = []
+var _roll: Array = []
 var _baked: PackedVector3Array = PackedVector3Array()
 
 
 static func create(
 	course_length: float, ramp_length: float, runoff_length: float,
-	pitch_profile: Array, heading_profile: Array
+	pitch_profile: Array, heading_profile: Array, roll_profile: Array = []
 ) -> CoursePath:
 	var path := CoursePath.new()
 	path.length = course_length
@@ -82,6 +96,7 @@ static func create(
 	path.runoff = runoff_length
 	path._pitch = pitch_profile
 	path._heading = heading_profile
+	path._roll = roll_profile
 	path._bake()
 	return path
 
@@ -143,7 +158,12 @@ func bank_at(s: float) -> float:
 	var ahead := _smoothed(_heading, s + baseline, BANK_BLEND)
 	var behind := _smoothed(_heading, s - baseline, BANK_BLEND)
 	var rate := (ahead - behind) / (baseline * 2.0)
-	return deg_to_rad(clampf(rate * BANK_GAIN, -BANK_LIMIT_DEGREES, BANK_LIMIT_DEGREES))
+	var bank := clampf(rate * BANK_GAIN, -BANK_LIMIT_DEGREES, BANK_LIMIT_DEGREES)
+	# Authored roll is smoothed over the same window the bank is, so the two are
+	# the same kind of quantity before they are added: a step in either is a
+	# twist the marbles hit rather than ride.
+	var roll := _smoothed(_roll, s, BANK_BLEND) if not _roll.is_empty() else 0.0
+	return deg_to_rad(clampf(bank + roll, -ROLL_LIMIT_DEGREES, ROLL_LIMIT_DEGREES))
 
 
 # --- Baking -------------------------------------------------------------------
