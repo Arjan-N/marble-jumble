@@ -64,6 +64,7 @@ const COURSE_POOL: Array[GDScript] = [
 	preload("res://scripts/course/slope_course.gd"),
 	preload("res://scripts/course/jungle_course.gd"),
 	preload("res://scripts/course/orbital_course.gd"),
+	preload("res://scripts/course/volcano_course.gd"),
 ]
 
 enum Phase { SETTLING, RACING, COMPLETE }
