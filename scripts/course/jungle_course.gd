@@ -167,7 +167,7 @@ const SURFACES := [
 	[1.00, SURFACE_STONE],
 ]
 
-const BOUNCE := 0.3
+const BOUNCE := 0.12
 
 # --- Features -----------------------------------------------------------------
 
@@ -396,13 +396,30 @@ func _stone_spans() -> Array:
 ## wedge-shaped gaps between consecutive chords on the inside of every corner —
 ## a marble found one and sat in it for the rest of the race. As section nodes
 ## they are simply places where the channel is higher.
-const SECTION_LATERALS := [
-	-HALF_WIDTH - SHOULDER, -HALF_WIDTH - SHOULDER * 0.66, -HALF_WIDTH - SHOULDER * 0.33,
-	-HALF_WIDTH, -3.6, -1.8,
-	-0.95, -0.5, 0.0, 0.5, 0.95,
-	1.8, 3.6, HALF_WIDTH,
-	HALF_WIDTH + SHOULDER * 0.33, HALF_WIDTH + SHOULDER * 0.66, HALF_WIDTH + SHOULDER,
-]
+## Spacing between section nodes, across the course.
+##
+## The first version placed them by hand and left 1.8m between them across the
+## middle of the dish. That is not a curve, it is a set of flat panels meeting at
+## angles, and a marble crossing the camber — which on a course that banks is
+## most of what marbles do — bumps over every join. The field chattered the whole
+## way down.
+##
+## Fine enough that the facet angle between neighbours is under two degrees
+## anywhere on the dish. The cost is triangles in a static mesh, which is the
+## cheapest thing in the scene.
+const SECTION_STEP := 0.4
+
+
+## Where the section has a vertex, from one shoulder to the other. Generated
+## rather than listed so the resolution is one number instead of a row of
+## hand-placed values that quietly stops being symmetric.
+static func _section_laterals() -> Array:
+	var edge := HALF_WIDTH + SHOULDER
+	var count := int(ceil(edge / SECTION_STEP))
+	var laterals := []
+	for i in range(-count, count + 1):
+		laterals.append(clampf(float(i) * SECTION_STEP, -edge, edge))
+	return laterals
 
 
 ## Height of the section at a lateral offset and distance, above the centreline.
@@ -438,7 +455,7 @@ func _root_lift(absolute_lateral: float, s: float) -> float:
 ## trimesh collider for the physics, both generated from the same vertex rows so
 ## they cannot disagree.
 func _build_run(from_s: float, to_s: float, surface: Dictionary) -> void:
-	var section := SECTION_LATERALS
+	var section := _section_laterals()
 
 	var rows := []
 	var s := from_s
