@@ -73,18 +73,53 @@ const HEADING := [
 	[1.00, 0.0],
 ]
 
-## Half the channel's width, measured across the surface rather than in plan.
-## Narrower than the canyon's 6m because a rounded section spends some of its
-## width on the sides, and because the camera lens is sized for a 12m track.
+## Widest the channel ever gets, and the number the camera lens is sized against.
+## The actual width at any point comes from `WIDTH`.
 const HALF_WIDTH := 5.4
-## How far the channel lifts at its edge, over `HALF_WIDTH`. This is the number
-## that decides whether the course feels like a gutter or a plate: at 0 it is the
-## canyon's flat floor, and too high turns every corner into a wall the field
-## simply parks against.
+
+## Half-width along the course, as `[[fraction, metres], ...]`.
+##
+## The canyon's width is a constant with two funnels bolted on as angled walls
+## standing in it. Expressing it as a profile instead means a funnel is not a
+## thing built on the course, it is the course being narrower there — no walls to
+## place, no crease where they meet the floor, and the whole shape readable in
+## one table.
+##
+## Three jobs are done entirely with this. **The equaliser** at 0.58 squeezes to
+## 2.9m: too narrow for a spread field to pass abreast, so whoever is ahead has
+## to queue with whoever is not, and a race that had strung out arrives at the
+## drop stacked again. **The log** at 0.74 is tight and deep together, which is
+## what makes it a tube rather than a narrow bit. **The run-in** at 0.92 closes
+## once more so the finish is a scramble.
+##
+## Never below 2.7m. Two marbles abreast is 1.8m, and a squeeze the field cannot
+## physically resolve is a jam, not a funnel — the Canyon's own notes record its
+## field dying in a 2.0m one.
+const WIDTH := [
+	[0.10, 5.0],
+	[0.22, 6.4], ## Opens through the first bend, so the camber has room to work.
+	[0.34, 4.4],
+	[0.46, 6.2],
+	[0.58, 3.9], ## The equaliser.
+	[0.68, 5.6],
+	[0.78, 3.7], ## The hollow log.
+	[0.88, 6.0],
+	[0.95, 4.1], ## Run-in.
+	[1.00, 5.2],
+]
+## How far the channel lifts at its edge. This is the number that decides whether
+## the course feels like a gutter or a plate: at 0 it is the canyon's flat floor,
+## and too high turns every corner into a wall the field simply parks against.
 const CHANNEL_RISE := 1.05
-## How many facets the curve of the section is approximated with. Six is the
-## point where a marble crossing the channel stops feeling them.
-const CHANNEL_SEGMENTS := 6
+## Extra depth through the hollow log, added to `CHANNEL_RISE`.
+##
+## Depth and width together are what make a tube. The log used to be a low
+## friction band with an evocative name and the same cross-section as everything
+## else; narrow *and* deep, the sides come up past a marble's own height and
+## there is no camber escape from it — you are in there until it ends.
+const LOG_RISE := 1.6
+const LOG_AT := 0.72
+const LOG_LENGTH := 22.0
 ## Length of one piece of the fixtures that are still built from boxes — the
 ## root, the undergrowth. Those sit along the centreline rather than across it,
 ## so the banking problem that forced the channel into a mesh does not reach
@@ -182,9 +217,24 @@ const ROOT_THICKNESS := 1.6
 
 ## Tree trunks standing in the channel, in the S-curve where the racing line
 ## already wants to cross. Fewer and fatter than the canyon's pillar rows.
+## Placed where the channel is wide, which is now a real constraint rather than
+## a preference: the second row used to sit at 0.58, and once `WIDTH` squeezed
+## that to 2.9m for the equaliser the trunks left a 1.43m gap and the assertion
+## refused to build the course. Obstacles and narrowings are the same tool, and
+## stacking them is how a funnel becomes a wall.
+## Rows are given a count and a lean, not positions.
+##
+## Fixed offsets were tried and abandoned. Once `WIDTH` varies, a row that fits
+## at 6.2m blocks the course at 4.5m, and the smoothing means the width where a
+## row actually lands is not the number written next to that fraction — three
+## attempts at hand-placing them all tripped the assertion. Spacing the trunks
+## evenly across whatever width is there makes them passable by construction, and
+## `lean` shifts the whole row off centre so consecutive rows still stagger
+## against each other rather than lining up.
 const TRUNK_ROWS := [
-	{"at": 0.46, "offsets": [-2.6, 1.9]},
-	{"at": 0.58, "offsets": [-1.4, 2.9]},
+	{"at": 0.40, "count": 2, "lean": -0.2},
+	{"at": 0.46, "count": 2, "lean": 0.15},
+	{"at": 0.86, "count": 2, "lean": 0.2},
 ]
 const TRUNK_RADIUS := 0.85
 const TRUNK_HEIGHT := 4.5
@@ -202,7 +252,32 @@ const STONES_AT := 0.70
 ## with. At 2.3m the field did not clear them: ten of twelve went in, which makes
 ## the stones a filter rather than a hazard, and the survivors were decided
 ## before the stretch rather than during it.
-## Empty, and the course is better for it until this is done properly.
+## The jump: a ramp, then a hole.
+##
+## This is what the stepping stones needed and did not have. A hole in the floor
+## with no ramp before it has no workable size — above about 1.4m the field does
+## not clear it, below that a marble is wider than the gap and wedges in it, and
+## the whole range sits inside a marble's own diameter. Crossing has to be a
+## trajectory, not a roll off a ledge.
+##
+## The ramp is the channel floor lifting, not a slab standing on it. Nothing
+## meets anything, so there is no crease and no seam — the lesson this course
+## taught four separate times. It rises `KICKER_RISE` over `KICKER_LENGTH`, which
+## against the 16 degree drop it sits on is still net downhill: a slow marble
+## crawls over it rather than stalling on it, which a real ramp would not
+## guarantee.
+const KICKER_AT := 0.63
+const KICKER_LENGTH := 6.0
+const KICKER_RISE := 0.65
+## Wide enough that it cannot be bridged, which is the constraint the stones
+## could never satisfy: comfortably over a marble's 0.9m, so anything that does
+## not fly it goes in.
+const JUMP_GAP := 2.4
+## Minimum speed the boost guarantees into the ramp. Sized against the gap: at
+## this speed off a 0.65m ramp a marble carries comfortably past 2.4m, so the
+## jump is something the course does *to* the field rather than a filter that
+## selects whoever happened to arrive quickly.
+const BOOST_SPEED := 13.0
 ##
 ## The idea is right — several small gaps to thread, against the canyon's one
 ## committed jump — but a hole in the floor with no ramp before it has no
@@ -217,17 +292,13 @@ const STONES_AT := 0.70
 ## from, so crossing is a trajectory rather than a roll off a ledge. That is a
 ## real piece of work, not a constant, and the course races well without it —
 ## 12/12 finishing, no falls, no stalls. Filed rather than bodged.
-const STONE_GAPS := []
-const STONE_LENGTHS := [4.5, 4.0]
 
-## The spinning log — the one Phase 0 obstacle, in jungle clothes.
-const LOG_AT := 0.84
+## The spinning log — the one Phase 0 obstacle, in jungle clothes. Sits inside
+## the hollow log section, where the channel is tight and there is no room to go
+## round it.
+const BUMPER_AT := 0.84
 const LOG_OFFSET := -1.8
 
-## Root tangle before the line: the narrowing that makes the finish a scramble.
-const TANGLE_AT := 0.90
-const TANGLE_LENGTH := 9.0
-const TANGLE_HALF_WIDTH := 3.0
 
 const LIP_COLOUR := Color(0.30, 0.26, 0.19)
 const ROOT_COLOUR := Color(0.35, 0.28, 0.20)
@@ -253,7 +324,7 @@ func build() -> void:
 	_build_back_wall()
 	_build_trunks()
 	_build_log()
-	_build_tangle()
+	_build_boost()
 	_build_finish_line()
 
 
@@ -268,24 +339,6 @@ func _frame_at(s: float) -> Transform3D:
 func _at(fraction: float) -> Transform3D:
 	return _frame_at(fraction * LENGTH)
 
-
-## Height of the channel surface at a lateral offset, relative to the centreline.
-## Parabolic, so the section is shallow where the marbles mostly are and steepens
-## towards the edges — which is what makes riding up the side in a corner cost
-## you something.
-func _channel_lift(lateral: float) -> float:
-	var absolute := absf(lateral)
-	if absolute <= HALF_WIDTH:
-		var t := absolute / HALF_WIDTH
-		return CHANNEL_RISE * t * t
-
-	# Past the racing width the same curve carries on, steepening. Continued with
-	# the dish's own gradient at the join (2·rise/half-width) before the extra
-	# term bites, so the two halves meet with no kink — a kink is a crease, and a
-	# crease on a banked course is a pocket.
-	var over := absolute - HALF_WIDTH
-	var gradient := 2.0 * CHANNEL_RISE / HALF_WIDTH
-	return CHANNEL_RISE + gradient * over + SHOULDER_CURVE * over * over
 
 
 func _surface_at(s: float) -> Dictionary:
@@ -372,17 +425,34 @@ func _in_hole(s: float, holes: Array) -> bool:
 	return false
 
 
-## The gaps between the stepping stones, as [start, end] distances.
+## Where the floor is missing, as `[start, end]` distances. One hole: the jump,
+## immediately past the top of the kicker.
 func _stone_spans() -> Array:
-	var spans := []
-	var at := STONES_AT * LENGTH
-	for i in STONE_GAPS.size():
-		var gap: float = STONE_GAPS[i]
-		spans.append(Vector2(at, at + gap))
-		at += gap
-		if i < STONE_LENGTHS.size():
-			at += STONE_LENGTHS[i]
-	return spans
+	var lip := KICKER_AT * LENGTH + KICKER_LENGTH
+	return [Vector2(lip, lip + JUMP_GAP)]
+
+
+## How much the floor is lifted by the kicker at `s`.
+##
+## Eased in and out rather than switched on, so the ramp grows out of the channel
+## and settles back into it. The trailing ease matters as much as the leading
+## one: it is what puts the lip at the top of a curve rather than at a corner, so
+## a marble leaves along the surface it has been following instead of clipping an
+## edge on the way off.
+func _kicker_lift(s: float) -> float:
+	var from_s := KICKER_AT * LENGTH
+	var lip := from_s + KICKER_LENGTH
+	var landing := lip + JUMP_GAP
+	var settle := 6.0
+
+	if s <= from_s:
+		return 0.0
+	if s < lip:
+		return KICKER_RISE * smoothstep(0.0, 1.0, (s - from_s) / KICKER_LENGTH)
+	# Past the gap the landing sinks back to the channel's own level. Left raised,
+	# the ramp would lift every remaining metre of course with it and the marble
+	# would be jumping *up* onto the far side.
+	return KICKER_RISE * (1.0 - smoothstep(0.0, settle, s - landing))
 
 
 ## Where the section has a vertex, from left lip to right lip. Fixed, because
@@ -410,24 +480,67 @@ func _stone_spans() -> Array:
 const SECTION_STEP := 0.4
 
 
-## Where the section has a vertex, from one shoulder to the other. Generated
-## rather than listed so the resolution is one number instead of a row of
-## hand-placed values that quietly stops being symmetric.
-static func _section_laterals() -> Array:
-	var edge := HALF_WIDTH + SHOULDER
+## Where the section has a vertex, as a fraction of the local half-width: -1 and
+## +1 are the edges of the racing surface, beyond that is shoulder.
+##
+## Normalised rather than in metres, because the width now varies along the
+## course and every row of the mesh still has to have the same number of nodes to
+## be stitched to the next. In metres the node count would change with the width
+## and the mesh would come apart exactly where the course gets interesting.
+static func _section_norms() -> Array:
+	var edge := 1.0 + SHOULDER
 	var count := int(ceil(edge / SECTION_STEP))
-	var laterals := []
+	var norms := []
 	for i in range(-count, count + 1):
-		laterals.append(clampf(float(i) * SECTION_STEP, -edge, edge))
-	return laterals
+		norms.append(clampf(float(i) * SECTION_STEP, -edge, edge))
+	return norms
+
+
+## Half-width of the racing surface at `s`.
+func _half_width_at(s: float) -> float:
+	return _path.sample(WIDTH, s)
+
+
+## Depth of the dish at `s` — deeper through the log.
+func _rise_at(s: float) -> float:
+	var from_s := LOG_AT * LENGTH
+	var to_s := from_s + LOG_LENGTH
+	if s <= from_s or s >= to_s:
+		return CHANNEL_RISE
+
+	var ease_length := 5.0
+	var inside := minf(
+		smoothstep(0.0, ease_length, s - from_s),
+		smoothstep(0.0, ease_length, to_s - s)
+	)
+	return CHANNEL_RISE + LOG_RISE * inside
+
+
+## One section vertex, as `(lateral, lift)` in the local frame, for a normalised
+## across-position `t` at distance `s`.
+func _section_point(t: float, s: float) -> Vector2:
+	var half_width := _half_width_at(s)
+	var rise := _rise_at(s)
+	var absolute := absf(t)
+	var lift: float
+
+	if absolute <= 1.0:
+		lift = rise * absolute * absolute
+	else:
+		# Past the racing surface the same curve carries on, steepening. Continued
+		# with the dish's own gradient at the join so the two halves meet with no
+		# kink — a kink is a crease, and a crease on a banked course is a pocket.
+		var over := (absolute - 1.0) * half_width
+		lift = rise + (2.0 * rise / half_width) * over + SHOULDER_CURVE * over * over
+
+	var lateral := t * half_width
+	return Vector2(lateral, lift + _root_lift(absf(lateral), s) + _kicker_lift(s))
 
 
 ## Height of the section at a lateral offset and distance, above the centreline.
 ## Monotonic in `abs(lateral)` outside the root, which is the property that
 ## matters: a section that rises all the way out has nowhere for a marble to
 ## settle except the middle.
-func _section_lift(lateral: float, s: float) -> float:
-	return _channel_lift(lateral) + _root_lift(absf(lateral), s)
 
 
 ## The buttress root, as a ridge in the middle of the channel: full height within
@@ -455,7 +568,7 @@ func _root_lift(absolute_lateral: float, s: float) -> float:
 ## trimesh collider for the physics, both generated from the same vertex rows so
 ## they cannot disagree.
 func _build_run(from_s: float, to_s: float, surface: Dictionary) -> void:
-	var section := _section_laterals()
+	var section := _section_norms()
 
 	var rows := []
 	var s := from_s
@@ -516,8 +629,9 @@ func _build_run(from_s: float, to_s: float, surface: Dictionary) -> void:
 func _section_row(s: float, section: Array) -> Array:
 	var frame := _frame_at(s)
 	var row := []
-	for lateral: float in section:
-		row.append(frame * Vector3(lateral, _section_lift(lateral, s), 0.0))
+	for t: float in section:
+		var node := _section_point(t, s)
+		row.append(frame * Vector3(node.x, node.y, 0.0))
 	return row
 
 
@@ -605,23 +719,29 @@ func _build_back_wall() -> void:
 
 func _build_trunks() -> void:
 	for row: Dictionary in TRUNK_ROWS:
-		var frame := _at(row["at"])
-		_assert_trunk_row(row["offsets"])
-		for offset: float in row["offsets"]:
-			_add_trunk(frame, offset)
+		var s: float = row["at"] * LENGTH
+		for offset: float in _trunk_offsets(s, row["count"], row["lean"]):
+			_add_trunk(s, offset)
 
 
-## Same silent-failure argument as the canyon's version: a too-narrow gap looks
-## fine and quietly swallows a marble twenty seconds into a run.
-func _assert_trunk_row(offsets: Array) -> void:
-	var edges := [-HALF_WIDTH]
-	for offset: float in offsets:
-		edges.append(offset - TRUNK_RADIUS)
-		edges.append(offset + TRUNK_RADIUS)
-	edges.append(HALF_WIDTH)
+## Evenly spaced trunk positions across the channel at `s`, leaving equal gaps
+## between them and the two edges, then leant to one side.
+##
+## `lean` is a fraction of one gap, so leaning can never eat a gap entirely — it
+## takes from one side and gives to the other, and the assertion below still has
+## the final say.
+func _trunk_offsets(s: float, count: int, lean: float) -> Array:
+	var half_width := _half_width_at(s)
+	var gap := (half_width * 2.0 - count * TRUNK_RADIUS * 2.0) / float(count + 1)
+	_assert_gap(gap - absf(lean) * gap, "trunk row at %.2f" % (s / LENGTH))
 
-	for i in range(0, edges.size() - 1, 2):
-		_assert_gap(edges[i + 1] - edges[i], "trunk row")
+	var offsets := []
+	for i in count:
+		var centre := -half_width + gap * float(i + 1) + TRUNK_RADIUS * float(i * 2 + 1)
+		offsets.append(centre + lean * gap * 0.5)
+	return offsets
+
+
 
 
 func _assert_gap(gap: float, what: String) -> void:
@@ -631,10 +751,10 @@ func _assert_gap(gap: float, what: String) -> void:
 	)
 
 
-func _add_trunk(frame: Transform3D, offset: float) -> void:
-	var lift := _channel_lift(offset)
+func _add_trunk(s: float, offset: float) -> void:
+	var lift := _section_point(offset / _half_width_at(s), s).y
 	var body := StaticBody3D.new()
-	body.transform = frame.translated_local(
+	body.transform = _frame_at(s).translated_local(
 		Vector3(offset, lift + TRUNK_HEIGHT * 0.5, 0.0)
 	)
 	body.physics_material_override = _surface_material()
@@ -659,32 +779,32 @@ func _add_trunk(frame: Transform3D, offset: float) -> void:
 	add_child(body)
 
 
+## The boost, sitting on the approach to the kicker rather than on it.
+##
+## Before the ramp, so a marble is already up to speed when the ground starts
+## tilting: on the ramp it would be adding speed to something already committed
+## to a trajectory, which is how a launch turns into a marble fired over the
+## landing entirely.
+func _build_boost() -> void:
+	var at := KICKER_AT * LENGTH - 3.0
+	var frame := _frame_at(at)
+	var pad := BoostPad.create(
+		_half_width_at(at) * 2.0,
+		-frame.basis.z, ## Local -Z is down-course.
+		BOOST_SPEED
+	)
+	pad.transform = frame.translated_local(Vector3(0.0, 1.2, 0.0))
+	add_child(pad)
+
+
 func _build_log() -> void:
 	var bumper := RotatingBumper.create()
-	var lift := _channel_lift(LOG_OFFSET)
-	bumper.transform = _at(LOG_AT).translated_local(Vector3(LOG_OFFSET, lift, 0.0))
+	var s := BUMPER_AT * LENGTH
+	var lift := _section_point(LOG_OFFSET / _half_width_at(s), s).y
+	bumper.transform = _frame_at(s).translated_local(Vector3(LOG_OFFSET, lift, 0.0))
 	add_child(bumper)
 
 
-## Roots closing in before the line. Same job as the canyon's final funnel and
-## built the same way, because the reason for it is the same: the field arrives
-## strung out and the leader crosses alone otherwise.
-func _build_tangle() -> void:
-	var taper := HALF_WIDTH - TANGLE_HALF_WIDTH
-	var angle := atan2(taper, TANGLE_LENGTH)
-	var span := sqrt(taper * taper + TANGLE_LENGTH * TANGLE_LENGTH)
-	var centre := TANGLE_AT * LENGTH + TANGLE_LENGTH * 0.5
-
-	for side: float in [-1.0, 1.0]:
-		var lateral := side * (HALF_WIDTH + TANGLE_HALF_WIDTH) * 0.5
-		var frame := _frame_at(centre).translated_local(
-			Vector3(lateral, _channel_lift(lateral) + 1.0, 0.0)
-		)
-		_add_box(
-			frame.rotated_local(Vector3.UP, side * angle),
-			Vector3(0.8, 2.0, span),
-			ROOT_COLOUR.darkened(0.15)
-		)
 
 
 func _build_finish_line() -> void:
@@ -782,7 +902,7 @@ func get_spawn_transforms(count: int, rng: RandomNumberGenerator) -> Array[Trans
 		spawns.append(
 			Transform3D(
 				Basis.IDENTITY,
-				_frame_at(-back) * Vector3(x, _channel_lift(x) + 0.9, 0.0)
+				_frame_at(-back) * Vector3(x, _section_point(x / _half_width_at(-back), -back).y + 0.9, 0.0)
 			)
 		)
 

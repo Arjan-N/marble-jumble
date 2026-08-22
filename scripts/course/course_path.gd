@@ -15,7 +15,7 @@ extends RefCounted
 ## it for points and frames; it knows nothing about floors, walls or obstacles.
 ##
 ## `SlopeCourse` has deliberately not been moved onto it yet. It works, it is
-## tuned, and it has produced three marble traps in one day — migrating it is a
+## tuned, and it has produced three marble traps in one day â€” migrating it is a
 ## change worth making on its own, where a regression has only one possible
 ## cause.
 ##
@@ -51,8 +51,8 @@ const BLEND := 7.0
 const TAPS := 5
 
 ## Degrees of bank per degree-per-metre of turn. Tuned so a corner turning at the
-## rate this kind of course actually turns at — very roughly one degree per metre
-## — comes out near the middle of the allowed range rather than pinned at it.
+## rate this kind of course actually turns at â€” very roughly one degree per metre
+## â€” comes out near the middle of the allowed range rather than pinned at it.
 const BANK_GAIN := 6.0
 ## Bank is clamped because the camber is generated, not authored, and a profile
 ## with a sharp heading change would otherwise ask for a wall. Past this a marble
@@ -112,6 +112,15 @@ func _smoothed(profile: Array, s: float, window: float) -> float:
 	return total / float(TAPS)
 
 
+## Smoothed value of any `[[fraction, value], ...]` profile a course wants to
+## carry along its own length â€” width, depth, anything that varies. Exposed so a
+## course does not have to reimplement the smoothing, which is the part that
+## matters: an unsmoothed profile is a step, and a step in any of these is
+## something a marble hits.
+func sample(profile: Array, s: float, window := BLEND) -> float:
+	return _smoothed(profile, s, window)
+
+
 ## Descent at `s`, in radians, positive downhill.
 func pitch_at(s: float) -> float:
 	return deg_to_rad(_smoothed(_pitch, s, BLEND))
@@ -122,7 +131,7 @@ func heading_at(s: float) -> float:
 	return deg_to_rad(_smoothed(_heading, s, BLEND))
 
 
-## Camber at `s`, in radians, positive rolling the track's right side down —
+## Camber at `s`, in radians, positive rolling the track's right side down â€”
 ## which is the way a marble is thrown in a right-hand corner, so a right turn
 ## banks into itself.
 ##
@@ -152,8 +161,8 @@ func _bake() -> void:
 		point += _direction_at(s) * BAKE_STEP
 		s += BAKE_STEP
 
-	# Re-origin so the start line sits at (0, 0, 0). Everything a course places —
-	# spawns, fall threshold, the camera — is written against that.
+	# Re-origin so the start line sits at (0, 0, 0). Everything a course places â€”
+	# spawns, fall threshold, the camera â€” is written against that.
 	var origin := point_at(0.0)
 	for i in _baked.size():
 		_baked[i] = _baked[i] - origin
@@ -185,7 +194,7 @@ func point_at(s: float) -> Vector3:
 
 ## The frame every fixture on a course is placed through, so nothing has to know
 ## about the profiles. Local -Z runs down-course, local X is track-right and local
-## Y is the surface normal — both rolled by the bank, so a fixture placed at a
+## Y is the surface normal â€” both rolled by the bank, so a fixture placed at a
 ## lateral offset in a banked corner sits on the camber rather than through it.
 func frame_at(s: float) -> Transform3D:
 	var forward := _direction_at(s)
