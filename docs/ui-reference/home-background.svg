@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 853 1844" preserveAspectRatio="xMidYMid slice">
+<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1687d8"/><stop offset="0.55" stop-color="#55c4ee"/><stop offset="1" stop-color="#f2a34b"/></linearGradient>
+  <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e66a25"/><stop offset="1" stop-color="#7e351e"/></linearGradient>
+  <linearGradient id="far" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cf6330"/><stop offset="1" stop-color="#a84324"/></linearGradient>
+  <pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.6" fill="#fff" opacity=".12"/></pattern>
+</defs>
+<rect width="853" height="1844" fill="url(#sky)"/>
+<rect width="853" height="980" fill="url(#dots)"/>
+<!-- clouds -->
+<g fill="#fff4dc" opacity=".9">
+ <ellipse cx="120" cy="245" rx="110" ry="42"/><ellipse cx="55" cy="250" rx="55" ry="35"/><ellipse cx="175" cy="250" rx="55" ry="38"/>
+ <ellipse cx="730" cy="320" rx="120" ry="45"/><ellipse cx="670" cy="325" rx="58" ry="34"/><ellipse cx="790" cy="325" rx="58" ry="38"/>
+ <ellipse cx="430" cy="510" rx="80" ry="30"/><ellipse cx="385" cy="515" rx="42" ry="26"/><ellipse cx="480" cy="515" rx="45" ry="28"/>
+</g>
+<!-- distant mesas -->
+<g fill="#cf7040" opacity=".65">
+ <path d="M80 890 L120 730 L180 690 L230 760 L250 900Z"/>
+ <path d="M270 900 L300 690 L350 650 L405 710 L425 910Z"/>
+ <path d="M500 900 L525 670 L575 620 L630 700 L650 900Z"/>
+ <path d="M680 900 L715 710 L765 670 L820 750 L850 910Z"/>
+</g>
+<!-- side canyon walls -->
+<path d="M0 430 L110 470 L160 610 L190 790 L145 920 L180 1060 L120 1220 L0 1320Z" fill="url(#far)"/>
+<path d="M853 430 L745 480 L700 620 L675 800 L715 930 L680 1080 L740 1230 L853 1320Z" fill="url(#far)"/>
+<g fill="#a74425" opacity=".8">
+ <path d="M0 650 L105 690 L145 850 L115 970 L0 1010Z"/>
+ <path d="M853 650 L750 700 L710 850 L745 970 L853 1010Z"/>
+</g>
+<!-- valley -->
+<path d="M0 1100 Q210 1000 425 1100 Q650 1000 853 1100 L853 1844 L0 1844Z" fill="url(#ground)"/>
+<path d="M0 1160 Q190 1070 425 1160 Q660 1070 853 1160" fill="none" stroke="#f49a3d" stroke-width="90" opacity=".55"/>
+<!-- foreground rocks -->
+<g fill="#b94d27">
+ <path d="M0 1280 L100 1200 L190 1260 L210 1450 L125 1510 L0 1460Z"/>
+ <path d="M853 1260 L760 1190 L680 1270 L650 1470 L745 1520 L853 1460Z"/>
+ <path d="M90 1570 L180 1490 L270 1550 L300 1690 L170 1740 L70 1680Z"/>
+ <path d="M760 1560 L690 1490 L600 1550 L580 1700 L700 1740 L800 1680Z"/>
+</g>
+<g fill="#e47a2d" opacity=".8">
+ <path d="M30 1350 l65 -45 50 20 -45 38z"/><path d="M710 1350 l55 -40 55 20 -40 40z"/>
+ <path d="M120 1600 l55 -35 45 25 -50 35z"/><path d="M650 1600 l55 -35 50 25 -45 35z"/>
+</g>
+<!-- cacti -->
+<g fill="#4c8b39" stroke="#214c2a" stroke-width="8">
+ <path d="M690 1450 L690 1240 Q690 1200 720 1200 Q750 1200 750 1240 L750 1310 L775 1280 Q800 1260 815 1280 Q830 1300 810 1320 L750 1370 L750 1450Z"/>
+ <path d="M120 1500 L120 1370 Q120 1340 145 1340 Q170 1340 170 1370 L170 1415 L195 1390 Q215 1375 230 1395 Q240 1415 220 1430 L170 1470 L170 1500Z"/>
+</g>
+<!-- subtle comic texture -->
+<rect width="853" height="1844" fill="url(#dots)" opacity=".45"/>
+</svg>
