@@ -32,7 +32,7 @@
 - **Marble scale:** between realistic and oversized; large enough for mobile readability while still reading clearly as marbles. Treat size as a tuning parameter.
 - **Track width:** generally wide enough for marbles to spread out, with deliberate collision/chaos sections.
 - **Race control:** watch-only during the race. No steering, nudging or abilities in Phase 0.
-- **Player marble identification:** customized appearance plus the normal subtle persistent highlight/rim. No floating arrow or oversized marker.
+- **Player marble identification:** customized appearance plus the normal subtle persistent highlight/rim. No floating arrow or oversized marker. *(Superseded 2026-08-22 — see "Player marble identification" below.)*
 - **Opponent marbles:** identical physical attributes; cosmetic differences only.
 - **Opponent behaviour:** no AI; opponents are physics-driven participants.
 - **Simulation:** fully physically simulated in Phase 0, with no invisible assistance, scripted outcomes or corrective forces.
@@ -69,6 +69,36 @@
 **Implication:**
 - A single-marble build remains a valid internal checkpoint for tuning marble feel, but it does not satisfy Phase 0.
 - Supersedes the "one marble" line in the PROJECT.md v0.2 Phase 0 list.
+
+### Player marble identification — 2026-08-22
+
+**Decision:** The player's marble carries a short fading trail in its own colour
+and a small floating rank tag showing its current place.
+
+**Supersedes** the "No floating arrow or oversized marker" clause in the Phase 0
+technical direction entry above. The rim/emission highlight stays, but it is not
+sufficient on its own:
+
+- The Compatibility renderer has no glow, so `emission` reads as plain material
+  brightness rather than as a halo.
+- A rim light is a grazing-angle effect, and the near-top-down camera under test
+  in `docs/CAMERA_SPIKE.md` presents it at its worst angle.
+- Neither cue survives a pile-up, which is exactly when the player most needs to
+  find their marble.
+
+Placement previously lived only in the HUD's standings column, which means
+looking away from the race to read it — the same problem `PROJECT.md` section 2.5
+raises about UI covering the track, in reverse.
+
+**Constraints kept:** the tag is small and fixed-size, not an oversized marker;
+the trail is short and single-coloured, not a particle effect (`PROJECT.md`
+section 8 rules out excessive particles and visual noise). Neither touches
+physics — cosmetics only, per `PROJECT.md` section 7. Opponents are unchanged.
+
+**Implication:** `CAMERA_SPIKE.md` question 2 ("if the marble is not findable at
+34m the fix is marble scale or highlight strength, not a marker") is answered by
+this entry rather than by it: the marker is now permitted, so that question
+should be re-read as being about the marble's own readability.
 
 ### Still undecided
 
