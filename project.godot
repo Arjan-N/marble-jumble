@@ -34,6 +34,15 @@ window/handheld/orientation=1
 ; the pacing table in README.md. Listed as open tuning by DECISIONS.md.
 3d/default_gravity=30.0
 
+; A marble landing from the jump falls a full KICKER_RISE below the lip before
+; it meets the floor again (orbital_course.gd _kicker_lift), and that floor is
+; a single-sided, zero-thickness ConcavePolygonShape3D. At the default 60
+; ticks/second, a fast marble's per-step travel can clear the mesh in one step
+; despite continuous_cd, and it falls through to elimination. Raising the tick
+; rate only makes physics resolve more finely per second of real time — gravity
+; and velocity are already in real units, so this does not rescale race pacing.
+common/physics_ticks_per_second=120
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

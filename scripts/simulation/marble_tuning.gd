@@ -15,7 +15,13 @@ extends Resource
 @export var radius: float = 0.45
 @export var mass: float = 1.0
 @export var friction: float = 0.4
-@export var bounce: float = 0.3
+## Was 0.3. That value only ever showed up as a faint wall-clip, because the
+## marble mostly tunnelled through hard landings (the jump) instead of actually
+## contacting them at the old 60Hz physics rate. Now that landings resolve
+## properly, 0.3 reads as a ball bouncing down the course rather than a marble
+## settling into a roll — lowered to keep a landing looking like an impact
+## without a bounce chain following it.
+@export var bounce: float = 0.06
 ## Damping is the single most sensitive value here. Angular damping opposes
 ## rolling directly, so small increases cost a lot of speed: at 0.1 the field
 ## plateaued near 3 m/s and the run overshot the 20-30s target several times
