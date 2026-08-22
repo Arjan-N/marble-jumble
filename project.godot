@@ -25,6 +25,10 @@ window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=1
 
+[autoload]
+
+PlayerProfile="*res://scripts/progression/player_profile.gd"
+
 [physics]
 
 ; Roughly 3g. The marbles are 0.9m across — some fifty times a real one — and at

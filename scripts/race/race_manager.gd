@@ -13,7 +13,17 @@ extends Node3D
 
 const MARBLE_COUNT := 12
 const PLAYER_MARBLE_INDEX_UNSET := -1
-const PLAYER_COLOUR := Color(0.25, 0.78, 1.0)
+
+## Read once at startup from the player's equipped skin (scripts/progression/
+## player_profile.gd) rather than a fixed const, so a shop purchase actually
+## shows up on the track.
+var PLAYER_COLOUR := Color(0.25, 0.78, 1.0)
+
+## Coins awarded when a tournament ends, keyed by how far the player got.
+## Placeholder amounts (PROJECT.md section 17 item 10 — reward values are TBD).
+const REWARD_ELIMINATED := 10
+const REWARD_PER_ROUND_SURVIVED := 15
+const REWARD_WON := 100
 
 ## Opponent names, drawn at random each race. Cosmetic — nothing here reaches the
 ## physics, and opponents remain identical to the player (PROJECT.md section 7).
@@ -176,8 +186,17 @@ const NEXT_ROUND_DELAY := 3.0
 ## actually be read, not just flash past. Comfortably inside NEXT_ROUND_DELAY.
 const OUTCOME_SHOUT_SECONDS := 1.8
 
+## Once the tournament itself is over (won or eliminated — not just a round),
+## there is nothing left on this screen to watch: the loop in PROJECT.md
+## section 5 goes home to rewards/customise/play again, not back into another
+## race in place. Longer than OUTCOME_SHOUT_SECONDS so the shout finishes
+## before the scene changes out from under it.
+const HOME_SCENE := "res://scenes/home.tscn"
+const RETURN_TO_HOME_DELAY := 3.2
+
 
 func _ready() -> void:
+	PLAYER_COLOUR = PlayerProfile.equipped_colour()
 	_tuning = MarbleTuning.new()
 	_setup_environment()
 	_start_race()
@@ -916,11 +935,15 @@ func _resolve_round() -> void:
 
 	if not player_survives:
 		_tournament_outcome = "eliminated"
+		PlayerProfile.add_coins(REWARD_ELIMINATED + REWARD_PER_ROUND_SURVIVED * (_round_number - 1))
 		_hud.shout("ELIMINATED!", Color(0.95, 0.35, 0.35), OUTCOME_SHOUT_SECONDS)
+		_return_to_home_after_delay()
 		return
 	if survivors.size() <= 1:
 		_tournament_outcome = "won"
+		PlayerProfile.add_coins(REWARD_WON)
 		_hud.shout("WINNER!", Color(1.0, 0.85, 0.3), OUTCOME_SHOUT_SECONDS)
+		_return_to_home_after_delay()
 		return
 
 	_hud.shout("QUALIFIED!", Color(0.72, 0.95, 0.62), OUTCOME_SHOUT_SECONDS)
@@ -935,6 +958,23 @@ func _resolve_round() -> void:
 	await get_tree().create_timer(NEXT_ROUND_DELAY).timeout
 	_roster = next_roster
 	_start_race()
+
+
+## Holds the outcome on screen just long enough to read, then leaves the race
+## scene entirely — a finished tournament has nowhere left to go on this
+## screen (PROJECT.md section 5: results/rewards/customise/play again all live
+## on or past the home screen, not in another lap of this one).
+##
+## Guarded against the manual `R` restart firing during the wait: that already
+## calls `_start_race()` and resets `_tournament_outcome`, so a stale timer
+## from the tournament it interrupted must not then yank the player back out
+## of the fresh one.
+func _return_to_home_after_delay() -> void:
+	var outcome := _tournament_outcome
+	await get_tree().create_timer(RETURN_TO_HOME_DELAY).timeout
+	if _tournament_outcome != outcome:
+		return
+	get_tree().change_scene_to_file(HOME_SCENE)
 
 
 # --- Presentation -------------------------------------------------------------
@@ -1012,7 +1052,9 @@ func _update_hud() -> void:
 				% [_round_number, _race_time, _live_position(), _camera_debug()]
 			)
 		Phase.COMPLETE:
-			_hud.show_text("%s\nR restarts the tournament%s" % [_result_line(), _camera_debug()])
+			var hint := "Back to menu...      R restarts now" if _tournament_outcome != "" \
+				else "R restarts the tournament"
+			_hud.show_text("%s\n%s%s" % [_result_line(), hint, _camera_debug()])
 
 
 ## Counts the field down to the release. Reads the barrier's own clock rather

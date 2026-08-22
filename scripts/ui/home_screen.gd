@@ -5,9 +5,9 @@ extends Control
 ## make the player's marble the hero, keep the environment lighter and simpler
 ## than the illustrated reference, and lead with MARBLE / START / STORE.
 ##
-## Round-start (course carousel, 4x3 marble grid) and Shop are not built yet —
-## MARBLE and STORE show a "coming soon" toast rather than nothing, and START
-## goes straight into the race scene. Revisit once those screens exist.
+## Round-start (course carousel, 4x3 marble grid) is not built yet — MARBLE
+## shows a "coming soon" toast rather than nothing. START goes straight into
+## the race scene. STORE opens the (placeholder-visuals) shop scene.
 ##
 ## Built entirely in code, no external art or custom fonts, matching every
 ## other screen in the project (`RaceHUD`, `ComicPopup`) — there is no art
@@ -15,11 +15,7 @@ extends Control
 ## produced with outlined text and hard-edged flat colour instead.
 
 const RACE_SCENE := "res://scenes/main.tscn"
-
-## No customisation exists yet to persist a chosen colour, so the home screen's
-## marble stands in with the same warm highlight tone the race gives the
-## player's marble. Swap for a saved profile colour once one exists.
-const MARBLE_COLOUR := Color(0.95, 0.75, 0.15)
+const SHOP_SCENE := "res://scenes/shop.tscn"
 
 const TITLE_FONT_SIZE := 64
 const NAV_FONT_SIZE := 24
@@ -80,7 +76,7 @@ func _build_title() -> void:
 
 func _build_marble() -> void:
 	var bounds := _track_bounds()
-	_marble = HomeMarble.create(MARBLE_COLOUR, bounds.x, bounds.y)
+	_marble = HomeMarble.create(PlayerProfile.equipped_colour(), bounds.x, bounds.y)
 	_marble.position.y = _track_row_y()
 	add_child(_marble)
 
@@ -148,7 +144,7 @@ func _build_nav() -> void:
 
 	row.add_child(_nav_button("MARBLE", func() -> void: _show_toast("Coming soon")))
 	row.add_child(_nav_button("START", _on_start_pressed, true))
-	row.add_child(_nav_button("STORE", func() -> void: _show_toast("Coming soon")))
+	row.add_child(_nav_button("STORE", func() -> void: get_tree().change_scene_to_file(SHOP_SCENE)))
 
 
 func _nav_button(label: String, on_pressed: Callable, emphasised := false) -> Button:
