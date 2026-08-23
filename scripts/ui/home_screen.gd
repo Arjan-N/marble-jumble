@@ -4,18 +4,14 @@ extends Control
 ## Home screen visual system:
 ## - illustrated 2D Canyon background
 ## - one lightweight real 3D marble on a simple physical track
-## - bold two-line comic-book logo
+## - replaceable comic-book logo artwork
 ## - chunky illustrated-style top controls
 ## - three large bottom actions with START clearly dominant
-##
-## Keep the scene intentionally cheap: the visual richness comes from the
-## authored background, while Godot renders only the marble and simple UI.
 
 const RACE_SCENE := "res://scenes/main.tscn"
 const SHOP_SCENE := "res://scenes/shop.tscn"
+const LOGO_TEXTURE := preload("res://assets/ui/home_logo.svg")
 
-const LOGO_TOP_SIZE := 68
-const LOGO_BOTTOM_SIZE := 76
 const TOP_BUTTON_SIZE := 22
 const CURRENCY_SIZE := 23
 const NAV_SIZE := 22
@@ -60,8 +56,6 @@ func _build_backdrop() -> void:
 	add_child(_backdrop)
 
 func _build_top_bar() -> void:
-	# Menu button: chunky, outlined, deliberately closer to the reference art
-	# than a stock Godot button.
 	var menu := Button.new()
 	menu.text = "☰"
 	menu.anchor_left = 0.035
@@ -80,7 +74,6 @@ func _build_top_bar() -> void:
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(menu)
 
-	# Currency display: a small gold badge with a separate green plus button.
 	var currency := PanelContainer.new()
 	currency.anchor_left = 1.0
 	currency.anchor_right = 1.0
@@ -134,63 +127,21 @@ func _build_top_bar() -> void:
 	currency_row.add_child(plus)
 
 func _build_logo() -> void:
-	# The logo sits slightly lower than the top HUD, leaving the canyon sky visible
-	# around it. Pass 2 replaces these labels with authored logo artwork.
-	var shadow_top := _logo_label("MARBLE", LOGO_TOP_SIZE, INK)
-	shadow_top.anchor_left = 0.08
-	shadow_top.anchor_right = 0.92
-	shadow_top.anchor_top = 0.125
-	shadow_top.anchor_bottom = 0.205
-	shadow_top.offset_left = 5.0
-	shadow_top.offset_top = 7.0
-	shadow_top.offset_right = 5.0
-	shadow_top.offset_bottom = 7.0
-	add_child(shadow_top)
-
-	var top := _logo_label("MARBLE", LOGO_TOP_SIZE, CREAM)
-	top.anchor_left = 0.08
-	top.anchor_right = 0.92
-	top.anchor_top = 0.121
-	top.anchor_bottom = 0.201
-	add_child(top)
-
-	var shadow_bottom := _logo_label("JUMBLE", LOGO_BOTTOM_SIZE, INK)
-	shadow_bottom.anchor_left = 0.055
-	shadow_bottom.anchor_right = 0.945
-	shadow_bottom.anchor_top = 0.185
-	shadow_bottom.anchor_bottom = 0.285
-	shadow_bottom.offset_left = 5.0
-	shadow_bottom.offset_top = 8.0
-	shadow_bottom.offset_right = 5.0
-	shadow_bottom.offset_bottom = 8.0
-	add_child(shadow_bottom)
-
-	var bottom := _logo_label("JUMBLE", LOGO_BOTTOM_SIZE, ORANGE)
-	bottom.anchor_left = 0.055
-	bottom.anchor_right = 0.945
-	bottom.anchor_top = 0.181
-	bottom.anchor_bottom = 0.281
-	add_child(bottom)
-
-func _logo_label(text_value: String, font_size: int, colour: Color) -> Label:
-	var label := Label.new()
-	label.text = text_value
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", colour)
-	label.add_theme_color_override("font_outline_color", INK)
-	label.add_theme_constant_override("outline_size", 9)
-	label.add_theme_color_override("font_shadow_color", Color(0.02, 0.01, 0.005, 0.65))
-	label.add_theme_constant_override("shadow_offset_x", 3)
-	label.add_theme_constant_override("shadow_offset_y", 5)
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return label
+	# Keep the logo as an authored asset rather than a stack of UI Labels.
+	# This lets us replace the artwork later without changing the layout code.
+	var logo := TextureRect.new()
+	logo.texture = LOGO_TEXTURE
+	logo.anchor_left = 0.07
+	logo.anchor_right = 0.93
+	logo.anchor_top = 0.105
+	logo.anchor_bottom = 0.315
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(logo)
 
 func _build_marble_view() -> void:
 	_marble_view = SubViewportContainer.new()
-	# The reference puts the marble low in the canyon, immediately above the
-	# navigation. Keep the viewport compact so it does not cover the background.
 	_marble_view.anchor_left = 0.035
 	_marble_view.anchor_right = 0.965
 	_marble_view.anchor_top = 0.535
@@ -264,8 +215,6 @@ func _build_nav() -> void:
 	row.anchor_right = 0.965
 	row.anchor_top = 1.0
 	row.anchor_bottom = 1.0
-	# Slightly lower and taller: the bottom controls should feel like a physical
-	# game panel, not a toolbar floating over the scene.
 	row.offset_top = -154.0
 	row.offset_bottom = -18.0
 	row.add_theme_constant_override("separation", 12)
