@@ -20,6 +20,7 @@ var _marble_view: SubViewportContainer
 var _marble_root: HomeMarble3D
 var _toast: Label
 var _toast_left := 0.0
+var _coins_label: Label
 
 func _ready() -> void:
 	anchor_right = 1.0
@@ -73,20 +74,21 @@ func _build_top_bar() -> void:
 	currency.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(currency)
 
-	var amount := Label.new()
-	amount.text = "1,250"
-	amount.anchor_left = 0.32
-	amount.anchor_right = 0.95
-	amount.anchor_top = 0.0
-	amount.anchor_bottom = 1.0
-	amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	amount.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	amount.add_theme_font_size_override("font_size", 23)
-	amount.add_theme_color_override("font_color", CREAM)
-	amount.add_theme_color_override("font_outline_color", INK)
-	amount.add_theme_constant_override("outline_size", 3)
-	amount.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	currency.add_child(amount)
+	_coins_label = Label.new()
+	_coins_label.text = "%d" % PlayerProfile.coins
+	_coins_label.anchor_left = 0.32
+	_coins_label.anchor_right = 0.95
+	_coins_label.anchor_top = 0.0
+	_coins_label.anchor_bottom = 1.0
+	_coins_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_coins_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_coins_label.add_theme_font_size_override("font_size", 23)
+	_coins_label.add_theme_color_override("font_color", CREAM)
+	_coins_label.add_theme_color_override("font_outline_color", INK)
+	_coins_label.add_theme_constant_override("outline_size", 3)
+	_coins_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	currency.add_child(_coins_label)
+	PlayerProfile.coins_changed.connect(_on_coins_changed)
 
 func _build_logo() -> void:
 	var logo := TextureRect.new()
@@ -165,6 +167,9 @@ func _show_toast(text_value: String) -> void:
 	_toast.text = text_value
 	_toast.modulate.a = 1.0
 	_toast_left = TOAST_SECONDS
+
+func _on_coins_changed(balance: int) -> void:
+	_coins_label.text = "%d" % balance
 
 func _build_nav() -> void:
 	var marble := _nav_button(MARBLE_BUTTON_TEXTURE, func() -> void: _show_toast("Marble collection coming soon"))
