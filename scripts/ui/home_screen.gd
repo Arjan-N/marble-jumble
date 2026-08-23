@@ -12,7 +12,6 @@ const RACE_SCENE := "res://scenes/main.tscn"
 const SHOP_SCENE := "res://scenes/shop.tscn"
 const LOGO_TEXTURE := preload("res://assets/ui/home_logo.svg")
 
-const TOP_BUTTON_SIZE := 22
 const CURRENCY_SIZE := 23
 const NAV_SIZE := 22
 const NAV_SMALL_SIZE := 16
@@ -127,8 +126,6 @@ func _build_top_bar() -> void:
 	currency_row.add_child(plus)
 
 func _build_logo() -> void:
-	# Keep the logo as an authored asset rather than a stack of UI Labels.
-	# This lets us replace the artwork later without changing the layout code.
 	var logo := TextureRect.new()
 	logo.texture = LOGO_TEXTURE
 	logo.anchor_left = 0.07
@@ -171,17 +168,17 @@ func _build_marble_view() -> void:
 	world.add_child(environment)
 
 	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-38.0, -25.0, 0.0)
+	light.rotation_degrees = Vector3(-32.0, -25.0, 0.0)
 	light.light_color = Color(1.0, 0.88, 0.72)
-	light.light_energy = 1.25
+	light.light_energy = 1.35
 	light.shadow_enabled = false
 	world.add_child(light)
 
 	var camera := Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 7.0
-	camera.position = Vector3(0.0, 3.0, 10.0)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.0, 0.0), Vector3.UP)
+	camera.size = 5.4
+	camera.position = Vector3(0.0, 1.55, 10.0)
+	camera.look_at_from_position(camera.position, Vector3(0.0, 0.80, 0.0), Vector3.UP)
 	world.add_child(camera)
 
 	_marble_root = HomeMarble3D.create(PlayerProfile.equipped_colour())
