@@ -65,7 +65,7 @@ func _build_top_bar() -> void:
 	var menu := Button.new()
 	menu.text = "☰"
 	menu.anchor_left = 0.035
-	menu.anchor_top = 0.018
+	menu.anchor_top = 0.025
 	menu.offset_right = 76.0
 	menu.offset_bottom = 76.0
 	menu.add_theme_font_size_override("font_size", 34)
@@ -84,7 +84,7 @@ func _build_top_bar() -> void:
 	var currency := PanelContainer.new()
 	currency.anchor_left = 1.0
 	currency.anchor_right = 1.0
-	currency.anchor_top = 0.018
+	currency.anchor_top = 0.025
 	currency.offset_left = -278.0
 	currency.offset_right = -18.0
 	currency.offset_bottom = 76.0
@@ -134,13 +134,13 @@ func _build_top_bar() -> void:
 	currency_row.add_child(plus)
 
 func _build_logo() -> void:
-	# Two-line logo gives the screen the same visual hierarchy as the reference:
-	# white MARBLE over orange JUMBLE, both with a heavy ink outline and shadow.
+	# The logo sits slightly lower than the top HUD, leaving the canyon sky visible
+	# around it. Pass 2 replaces these labels with authored logo artwork.
 	var shadow_top := _logo_label("MARBLE", LOGO_TOP_SIZE, INK)
 	shadow_top.anchor_left = 0.08
 	shadow_top.anchor_right = 0.92
-	shadow_top.anchor_top = 0.105
-	shadow_top.anchor_bottom = 0.185
+	shadow_top.anchor_top = 0.125
+	shadow_top.anchor_bottom = 0.205
 	shadow_top.offset_left = 5.0
 	shadow_top.offset_top = 7.0
 	shadow_top.offset_right = 5.0
@@ -150,15 +150,15 @@ func _build_logo() -> void:
 	var top := _logo_label("MARBLE", LOGO_TOP_SIZE, CREAM)
 	top.anchor_left = 0.08
 	top.anchor_right = 0.92
-	top.anchor_top = 0.101
-	top.anchor_bottom = 0.181
+	top.anchor_top = 0.121
+	top.anchor_bottom = 0.201
 	add_child(top)
 
 	var shadow_bottom := _logo_label("JUMBLE", LOGO_BOTTOM_SIZE, INK)
 	shadow_bottom.anchor_left = 0.055
 	shadow_bottom.anchor_right = 0.945
-	shadow_bottom.anchor_top = 0.162
-	shadow_bottom.anchor_bottom = 0.255
+	shadow_bottom.anchor_top = 0.185
+	shadow_bottom.anchor_bottom = 0.285
 	shadow_bottom.offset_left = 5.0
 	shadow_bottom.offset_top = 8.0
 	shadow_bottom.offset_right = 5.0
@@ -168,8 +168,8 @@ func _build_logo() -> void:
 	var bottom := _logo_label("JUMBLE", LOGO_BOTTOM_SIZE, ORANGE)
 	bottom.anchor_left = 0.055
 	bottom.anchor_right = 0.945
-	bottom.anchor_top = 0.158
-	bottom.anchor_bottom = 0.251
+	bottom.anchor_top = 0.181
+	bottom.anchor_bottom = 0.281
 	add_child(bottom)
 
 func _logo_label(text_value: String, font_size: int, colour: Color) -> Label:
@@ -189,10 +189,12 @@ func _logo_label(text_value: String, font_size: int, colour: Color) -> Label:
 
 func _build_marble_view() -> void:
 	_marble_view = SubViewportContainer.new()
+	# The reference puts the marble low in the canyon, immediately above the
+	# navigation. Keep the viewport compact so it does not cover the background.
 	_marble_view.anchor_left = 0.035
 	_marble_view.anchor_right = 0.965
-	_marble_view.anchor_top = 0.48
-	_marble_view.anchor_bottom = 0.75
+	_marble_view.anchor_top = 0.535
+	_marble_view.anchor_bottom = 0.775
 	_marble_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_marble_view.stretch = true
 	add_child(_marble_view)
@@ -238,8 +240,8 @@ func _build_toast() -> void:
 	_toast = Label.new()
 	_toast.anchor_left = 0.0
 	_toast.anchor_right = 1.0
-	_toast.anchor_top = 0.76
-	_toast.anchor_bottom = 0.76
+	_toast.anchor_top = 0.78
+	_toast.anchor_bottom = 0.78
 	_toast.offset_top = 6.0
 	_toast.offset_bottom = 42.0
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -262,8 +264,10 @@ func _build_nav() -> void:
 	row.anchor_right = 0.965
 	row.anchor_top = 1.0
 	row.anchor_bottom = 1.0
-	row.offset_top = -158.0
-	row.offset_bottom = -24.0
+	# Slightly lower and taller: the bottom controls should feel like a physical
+	# game panel, not a toolbar floating over the scene.
+	row.offset_top = -154.0
+	row.offset_bottom = -18.0
 	row.add_theme_constant_override("separation", 12)
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(row)
@@ -284,7 +288,7 @@ func _nav_button(label: String, on_pressed: Callable, fill: Color, emphasised: b
 	var button := Button.new()
 	button.text = label
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size = Vector2(0, 118 if emphasised else 108)
+	button.custom_minimum_size = Vector2(0, 122 if emphasised else 112)
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.add_theme_font_size_override("font_size", NAV_SIZE if emphasised else NAV_SMALL_SIZE)
 	button.add_theme_color_override("font_color", INK if emphasised else CREAM)
