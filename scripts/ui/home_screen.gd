@@ -61,14 +61,19 @@ func _build_top_bar() -> void:
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(menu)
 
+	# Sized from the reference mock-up, measured in this 720x1280 space: the
+	# indicator is as tall as the menu button and shares its centre line, with a
+	# 19px gutter to the right edge. The width follows from the artwork's own
+	# 3.505:1 aspect, so the pill fills the box exactly and nothing is letterboxed.
 	var currency := TextureRect.new()
 	currency.texture = COIN_INDICATOR_TEXTURE
 	currency.anchor_left = 1.0
 	currency.anchor_right = 1.0
 	currency.anchor_top = 0.025
-	currency.offset_left = -161.0
-	currency.offset_right = -16.0
-	currency.offset_bottom = 76.0
+	currency.offset_left = -254.0
+	currency.offset_right = -19.0
+	currency.offset_top = 4.5
+	currency.offset_bottom = 71.5
 	currency.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	currency.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	currency.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -76,16 +81,19 @@ func _build_top_bar() -> void:
 
 	_coins_label = Label.new()
 	_coins_label.text = "%d" % PlayerProfile.coins
-	_coins_label.anchor_left = 0.32
-	_coins_label.anchor_right = 0.95
+	# The coin sits in the leftmost 24% of the artwork; the balance is centred in
+	# the dark trough that follows it rather than left-aligned against the coin,
+	# because this pill is a good deal longer than the one in the mock-up.
+	_coins_label.anchor_left = 0.26
+	_coins_label.anchor_right = 0.96
 	_coins_label.anchor_top = 0.0
 	_coins_label.anchor_bottom = 1.0
-	_coins_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_coins_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_coins_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_coins_label.add_theme_font_size_override("font_size", 23)
+	_coins_label.add_theme_font_size_override("font_size", 30)
 	_coins_label.add_theme_color_override("font_color", CREAM)
 	_coins_label.add_theme_color_override("font_outline_color", INK)
-	_coins_label.add_theme_constant_override("outline_size", 3)
+	_coins_label.add_theme_constant_override("outline_size", 4)
 	_coins_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	currency.add_child(_coins_label)
 	PlayerProfile.coins_changed.connect(_on_coins_changed)
