@@ -1,0 +1,41 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  export-apk:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.7.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Generate debug keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore /root/debug.keystore \
+            -storepass android -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Import project
+        run: godot --headless --import
+
+      - name: Export Android APK
+        run: |
+          mkdir -p build/android
+          godot --headless --export-debug "Android" build/android/marble-jumble.apk
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /root/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: marble-jumble-apk
+          path: build/android/marble-jumble.apk

@@ -3,7 +3,6 @@
 *.translation
 
 # Export artefacts
-export_presets.cfg
 /build/
 /exports/
 /android/
