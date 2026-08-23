@@ -2,15 +2,17 @@ class_name HomeBackdrop
 extends TextureRect
 
 ## Illustrated 2D Canyon backdrop for the Home screen.
-## The reference artwork is kept as a single SVG asset. Load the SVG through
-## Godot's image decoder at runtime so the embedded image is handled by the
-## same SVG pipeline as the rest of the project.
+## The reference artwork is kept as a single SVG asset. Render the SVG at
+## 4x its logical size so the embedded Canyon artwork is rasterized at a
+## resolution appropriate for the 720x1280 portrait viewport.
 
 const BACKGROUND_PATH := "res://assets/ui/home_background.svg"
+const SVG_RENDER_SCALE := 4.0
 
 func _ready() -> void:
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	modulate = Color.WHITE
 	texture = _load_svg(BACKGROUND_PATH)
@@ -27,7 +29,7 @@ func _load_svg(path: String) -> Texture2D:
 	file.close()
 
 	var image := Image.new()
-	var error := image.load_svg_from_string(svg, 1.0)
+	var error := image.load_svg_from_string(svg, SVG_RENDER_SCALE)
 	if error != OK:
 		push_error("HomeBackdrop: SVG failed to decode: %s" % error)
 		return null
