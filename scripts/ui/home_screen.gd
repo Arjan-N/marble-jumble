@@ -199,8 +199,8 @@ func _build_nav() -> void:
 	store.offset_bottom = -16.0
 	add_child(store)
 
-func _nav_button(button_texture: Texture2D, on_pressed: Callable) -> TextureButton:
-	var button := TextureButton.new()
+func _nav_button(button_texture: Texture2D, on_pressed: Callable) -> HomeNavButton:
+	var button := HomeNavButton.new()
 	button.texture_normal = button_texture
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
