@@ -4,7 +4,7 @@ These images/assets are visual direction references for the first major mobile U
 
 ## Reference files
 
-- `home.jpg` — Home screen visual reference
+- `home.png` — Home screen visual reference
 - `home-background.svg` — lightweight Canyon background asset for the Home screen
 - `round-start.jpg` — Tournament round/course setup
 - `shop.jpg` — Shop
@@ -52,7 +52,7 @@ This is intentional and should be treated as the visual architecture for the Hom
 
 > Rework the current Home screen rather than continuing to polish the existing primitive placeholder scene. The current implementation has the correct basic structure but looks like a wireframe because it uses flat gradients, primitive canyon polygons, a tiny generic marble and default-looking controls.
 >
-> The visual target is the committed `docs/ui-reference/home.jpg`, with `docs/ui-reference/home-background.svg` used as the initial Canyon background asset.
+> The visual target is the committed `docs/ui-reference/home.png`, with `docs/ui-reference/home-background.svg` used as the initial Canyon background asset.
 >
 > **Do not procedurally recreate the Canyon from primitive Godot polygons.** Use the background asset as a 2D layer.
 >
