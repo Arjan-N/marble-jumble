@@ -2,9 +2,9 @@ class_name HomeBackdrop
 extends TextureRect
 
 ## Illustrated 2D Canyon backdrop for the Home screen.
-## The supplied artwork is an SVG wrapper containing the reference JPEG.
-## Godot's Compatibility renderer can fail to import that SVG's embedded
-## data URI, so decode the same image payload directly at runtime.
+## The reference artwork is kept as a single SVG asset. Load the SVG through
+## Godot's image decoder at runtime so the embedded image is handled by the
+## same SVG pipeline as the rest of the project.
 
 const BACKGROUND_PATH := "res://assets/ui/home_background.svg"
 
@@ -13,12 +13,11 @@ func _ready() -> void:
 	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	modulate = Color.WHITE
-	texture = _load_embedded_image(BACKGROUND_PATH)
+	texture = _load_svg(BACKGROUND_PATH)
 	if texture == null:
-		# Keep the failure obvious instead of silently showing the grey viewport.
 		self_modulate = Color(0.08, 0.12, 0.18, 1.0)
 
-func _load_embedded_image(path: String) -> Texture2D:
+func _load_svg(path: String) -> Texture2D:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		push_error("HomeBackdrop: could not open %s" % path)
@@ -27,28 +26,10 @@ func _load_embedded_image(path: String) -> Texture2D:
 	var svg := file.get_as_text()
 	file.close()
 
-	var marker := "base64,"
-	var start := svg.find(marker)
-	if start < 0:
-		push_error("HomeBackdrop: no embedded base64 image found in %s" % path)
-		return null
-	start += marker.length()
-
-	var end := svg.find('"', start)
-	if end < 0:
-		push_error("HomeBackdrop: malformed embedded image in %s" % path)
-		return null
-
-	var encoded := svg.substr(start, end - start)
-	var bytes := Marshalls.base64_to_raw(encoded)
-	if bytes.is_empty():
-		push_error("HomeBackdrop: embedded image decoded to zero bytes")
-		return null
-
 	var image := Image.new()
-	var error := image.load_jpg_from_buffer(bytes)
+	var error := image.load_svg_from_string(svg, 1.0)
 	if error != OK:
-		push_error("HomeBackdrop: embedded JPEG failed to decode: %s" % error)
+		push_error("HomeBackdrop: SVG failed to decode: %s" % error)
 		return null
 
 	return ImageTexture.create_from_image(image)
