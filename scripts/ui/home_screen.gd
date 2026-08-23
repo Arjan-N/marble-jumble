@@ -3,15 +3,16 @@ extends Control
 
 const RACE_SCENE := "res://scenes/main.tscn"
 const SHOP_SCENE := "res://scenes/shop.tscn"
-const LOGO_TEXTURE := preload("res://assets/ui/home_logo.svg")
+const LOGO_TEXTURE := preload("res://assets/ui/marble_jumble_logo.png")
+const COIN_INDICATOR_TEXTURE := preload("res://assets/ui/coins_indicator.png")
+const MARBLE_BUTTON_TEXTURE := preload("res://assets/ui/buttons/marble_button.png")
+const START_BUTTON_TEXTURE := preload("res://assets/ui/buttons/start_button.png")
+const STORE_BUTTON_TEXTURE := preload("res://assets/ui/buttons/store_button.png")
 const ICON_SCRIPT := preload("res://scripts/ui/home_icon.gd")
 
 const CREAM := Color(1.0, 0.965, 0.86)
 const INK := Color(0.075, 0.032, 0.018)
-const YELLOW := Color(1.0, 0.69, 0.06)
 const BLUE := Color(0.055, 0.38, 0.78)
-const PURPLE := Color(0.47, 0.18, 0.76)
-const GREEN := Color(0.30, 0.72, 0.12)
 const TOAST_SECONDS := 1.6
 
 var _backdrop: HomeBackdrop
@@ -59,56 +60,41 @@ func _build_top_bar() -> void:
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(menu)
 
-	var currency := PanelContainer.new()
+	var currency := TextureRect.new()
+	currency.texture = COIN_INDICATOR_TEXTURE
 	currency.anchor_left = 1.0
 	currency.anchor_right = 1.0
 	currency.anchor_top = 0.025
-	currency.offset_left = -278.0
-	currency.offset_right = -18.0
+	currency.offset_left = -161.0
+	currency.offset_right = -16.0
 	currency.offset_bottom = 76.0
-	currency.add_theme_stylebox_override("panel", _panel_style(Color(0.18, 0.085, 0.035, 0.97), 5, 20, 7))
+	currency.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	currency.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	currency.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(currency)
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 5)
-	row.add_theme_constant_override("margin_left", 8)
-	row.add_theme_constant_override("margin_right", 7)
-	currency.add_child(row)
-
-	var coin := _icon(ICON_SCRIPT.Kind.COIN, CREAM, 48.0)
-	coin.custom_minimum_size = Vector2(48, 48)
-	row.add_child(coin)
-
 	var amount := Label.new()
 	amount.text = "1,250"
-	amount.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	amount.anchor_left = 0.32
+	amount.anchor_right = 0.95
+	amount.anchor_top = 0.0
+	amount.anchor_bottom = 1.0
+	amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	amount.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	amount.add_theme_font_size_override("font_size", 23)
 	amount.add_theme_color_override("font_color", CREAM)
 	amount.add_theme_color_override("font_outline_color", INK)
 	amount.add_theme_constant_override("outline_size", 3)
-	row.add_child(amount)
-
-	var plus := Button.new()
-	plus.custom_minimum_size = Vector2(52, 52)
-	plus.add_theme_stylebox_override("normal", _panel_style(GREEN, 4, 26, 3))
-	plus.add_theme_stylebox_override("hover", _panel_style(GREEN.lightened(0.08), 4, 26, 3))
-	plus.add_theme_stylebox_override("pressed", _panel_style(GREEN.darkened(0.12), 4, 26, 3))
-	plus.add_theme_stylebox_override("focus", _panel_style(GREEN, 4, 26, 3))
-	var plus_icon := _icon(ICON_SCRIPT.Kind.PLUS, CREAM, 34.0)
-	plus_icon.position = Vector2(9, 9)
-	plus.add_child(plus_icon)
-	plus.pressed.connect(func() -> void: _show_toast("Shop coming soon"))
-	row.add_child(plus)
+	amount.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	currency.add_child(amount)
 
 func _build_logo() -> void:
 	var logo := TextureRect.new()
 	logo.texture = LOGO_TEXTURE
 	logo.anchor_left = 0.07
 	logo.anchor_right = 0.93
-	logo.anchor_top = 0.105
-	logo.anchor_bottom = 0.315
+	logo.anchor_top = 0.09
+	logo.anchor_bottom = 0.40
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -181,61 +167,39 @@ func _show_toast(text_value: String) -> void:
 	_toast_left = TOAST_SECONDS
 
 func _build_nav() -> void:
-	var row := HBoxContainer.new()
-	row.anchor_left = 0.035
-	row.anchor_right = 0.965
-	row.anchor_top = 1.0
-	row.anchor_bottom = 1.0
-	row.offset_top = -160.0
-	row.offset_bottom = -16.0
-	row.add_theme_constant_override("separation", 12)
-	row.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(row)
+	var marble := _nav_button(MARBLE_BUTTON_TEXTURE, func() -> void: _show_toast("Marble collection coming soon"))
+	marble.anchor_left = 0.0222
+	marble.anchor_right = 0.2403
+	marble.anchor_top = 1.0
+	marble.anchor_bottom = 1.0
+	marble.offset_top = -191.0
+	marble.offset_bottom = -16.0
+	add_child(marble)
 
-	var marble := _nav_button("MARBLE", func() -> void: _show_toast("Marble collection coming soon"), BLUE, false, ICON_SCRIPT.Kind.MARBLE)
-	marble.size_flags_stretch_ratio = 1.0
-	row.add_child(marble)
+	var start := _nav_button(START_BUTTON_TEXTURE, _on_start_pressed)
+	start.anchor_left = 0.2570
+	start.anchor_right = 0.7431
+	start.anchor_top = 1.0
+	start.anchor_bottom = 1.0
+	start.offset_top = -203.0
+	start.offset_bottom = -16.0
+	add_child(start)
 
-	var start := _nav_button("START", _on_start_pressed, YELLOW, true, -1)
-	start.size_flags_stretch_ratio = 1.42
-	row.add_child(start)
+	var store := _nav_button(STORE_BUTTON_TEXTURE, func() -> void: get_tree().change_scene_to_file(SHOP_SCENE))
+	store.anchor_left = 0.7598
+	store.anchor_right = 0.9778
+	store.anchor_top = 1.0
+	store.anchor_bottom = 1.0
+	store.offset_top = -191.0
+	store.offset_bottom = -16.0
+	add_child(store)
 
-	var store := _nav_button("STORE", func() -> void: get_tree().change_scene_to_file(SHOP_SCENE), PURPLE, false, ICON_SCRIPT.Kind.CART)
-	store.size_flags_stretch_ratio = 1.0
-	row.add_child(store)
-
-func _nav_button(label: String, on_pressed: Callable, fill: Color, emphasised: bool, icon_kind: int) -> Button:
-	var button := Button.new()
-	button.text = ""
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size = Vector2(0, 126 if emphasised else 118)
-	button.add_theme_stylebox_override("normal", _panel_style(fill, 6, 22, 8))
-	button.add_theme_stylebox_override("hover", _panel_style(fill.lightened(0.08), 6, 22, 8))
-	button.add_theme_stylebox_override("pressed", _panel_style(fill.darkened(0.14), 6, 22, 4))
-	button.add_theme_stylebox_override("focus", _panel_style(fill, 6, 22, 8))
+func _nav_button(button_texture: Texture2D, on_pressed: Callable) -> TextureButton:
+	var button := TextureButton.new()
+	button.texture_normal = button_texture
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	button.pressed.connect(on_pressed)
-
-	if icon_kind >= 0:
-		var icon := _icon(icon_kind, CREAM, 54.0 if not emphasised else 44.0)
-		icon.anchor_left = 0.5
-		icon.anchor_top = 0.08
-		icon.position = Vector2(-27, 4)
-		button.add_child(icon)
-
-	var text := Label.new()
-	text.text = label
-	text.anchor_left = 0.0
-	text.anchor_right = 1.0
-	text.anchor_top = 0.67 if not emphasised else 0.38
-	text.anchor_bottom = 1.0
-	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	text.add_theme_font_size_override("font_size", 19 if not emphasised else 29)
-	text.add_theme_color_override("font_color", INK if emphasised else CREAM)
-	text.add_theme_color_override("font_outline_color", CREAM if emphasised else INK)
-	text.add_theme_constant_override("outline_size", 5)
-	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	button.add_child(text)
 	return button
 
 func _icon(kind: int, fill: Color, side: float) -> HomeIcon:
