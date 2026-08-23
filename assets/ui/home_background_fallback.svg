@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 216 384" preserveAspectRatio="xMidYMid slice">
+<defs>
+ <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#1475c9"/><stop offset=".62" stop-color="#58c5e6"/><stop offset="1" stop-color="#f1b46c"/></linearGradient>
+ <linearGradient id="ground" x2="0" y2="1"><stop stop-color="#e8792b"/><stop offset="1" stop-color="#8f321f"/></linearGradient>
+ <linearGradient id="rock" x2="0" y2="1"><stop stop-color="#e45d29"/><stop offset="1" stop-color="#8c2e20"/></linearGradient>
+ <linearGradient id="rock2" x2="0" y2="1"><stop stop-color="#f17a31"/><stop offset="1" stop-color="#ad3b22"/></linearGradient>
+</defs>
+<rect width="216" height="384" fill="url(#sky)"/>
+<g fill="#fff8e9" opacity=".88">
+ <ellipse cx="34" cy="54" rx="25" ry="12"/><ellipse cx="51" cy="48" rx="19" ry="15"/><ellipse cx="68" cy="57" rx="28" ry="10"/>
+ <ellipse cx="173" cy="45" rx="22" ry="9"/><ellipse cx="188" cy="38" rx="16" ry="13"/><ellipse cx="203" cy="47" rx="24" ry="9"/>
+ <ellipse cx="101" cy="91" rx="20" ry="7"/><ellipse cx="116" cy="86" rx="14" ry="10"/><ellipse cx="130" cy="92" rx="21" ry="7"/>
+</g>
+<g fill="#a74a2b">
+ <path d="M0 113V75l24 8 10 55 8 47H0z"/><path d="M216 105V70l-26 10-9 53-9 49h44z"/>
+ <path d="M18 130l20 9 13 53-18 25-33-10z"/><path d="M198 126l-22 14-12 51 20 26 32-12z"/>
+</g>
+<g fill="#b96a43" opacity=".95">
+ <path d="M72 141l15-21 14 15 3 54H67z"/><path d="M118 136l14-26 14 21 4 57h-34z"/><path d="M45 171l10-18 13 18 2 33H43z"/>
+</g>
+<path fill="url(#rock)" d="M0 207l30-17 20 15 10 38 24 10 15-28 17 12 9 31 24-17 18 7 8-31 23-11 18 14v170H0z"/>
+<path fill="url(#rock2)" d="M0 227l22-12 21 12 11 39 21 10 17-31 18 9 7 32 25-16 20 9 9-31 22-11 23 14v64l-216 7z" opacity=".92"/>
+<path fill="#d55a28" d="M0 279l37-25 28 18 18 32 31-20 26 20 24-22 30 16 22-19v125H0z"/>
+<path fill="#f18a36" d="M0 318l43-21 35 24 29-18 31 18 29-25 49 23v65H0z"/>
+<path fill="url(#ground)" d="M0 320l45-10 33 14 28-12 35 11 31-16 44 15v62H0z"/>
+<path fill="#6e281c" d="M0 365l33-12 28 10 29-13 35 11 31-10 34 11 26-9v31H0z"/>
+<g fill="#3f4a1f">
+ <path d="M21 285l3-27 4 27 7-18-3 20 9-12-8 18H17z"/><path d="M185 287l3-31 5 30 8-20-4 22 10-13-9 19h-17z"/>
+ <path d="M52 350l3-24 4 24 7-14-4 16 8-9-7 13H49z"/><path d="M159 345l3-26 4 25 8-15-4 17 9-10-8 14h-15z"/>
+</g>
+<g fill="#e4a04a" opacity=".5">
+ <path d="M20 213l28-7 9 8-28 8z"/><path d="M164 205l26-10 12 7-29 12z"/><path d="M77 250l24-9 9 8-27 9z"/>
+</g>
+</svg>
