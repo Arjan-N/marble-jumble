@@ -1,0 +1,53 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Marble Jumble"
+config/description="Phase 0 physics prototype. See docs/PHASE_0_TECHNICAL_SPEC.md."
+run/main_scene="res://scenes/home.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/size/window_width_override=450
+window/size/window_height_override=800
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=1
+
+[autoload]
+
+PlayerProfile="*res://scripts/progression/player_profile.gd"
+
+[physics]
+
+; Roughly 3g. The marbles are 0.9m across — some fifty times a real one — and at
+; 9.8 a world built at that scale reads as slow motion, because everything falls
+; at real-marble speed through fifty-marble distances. Raising gravity is a pure
+; time-rescale: identical race, played 1.75x faster. Measured, not guessed; see
+; the pacing table in README.md. Listed as open tuning by DECISIONS.md.
+3d/default_gravity=30.0
+
+; A marble landing from the jump falls a full KICKER_RISE below the lip before
+; it meets the floor again (orbital_course.gd _kicker_lift), and that floor is
+; a single-sided, zero-thickness ConcavePolygonShape3D. At the default 60
+; ticks/second, a fast marble's per-step travel can clear the mesh in one step
+; despite continuous_cd, and it falls through to elimination. Raising the tick
+; rate only makes physics resolve more finely per second of real time — gravity
+; and velocity are already in real units, so this does not rescale race pacing.
+common/physics_ticks_per_second=120
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
