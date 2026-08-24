@@ -51,13 +51,15 @@ const IMPACT_DELTA_THRESHOLD := 3.0
 ## "alive" rather than "painted on" — the difference between a highlight a
 ## child's eye is drawn to and one that just sits there.
 var _highlight_material: StandardMaterial3D
+## False for a skin that paints its own emission map — see `_build_material`.
+var _pulses := true
 ## The player's trail, kept so a reset can drop it rather than leaving a streak
 ## stretched between two rounds' spawn points.
 var _trail: MarbleTrail
 var _pulse_time := 0.0
 const PULSE_SPEED := 2.2
-const PULSE_MIN := 0.18
-const PULSE_MAX := 0.5
+const PULSE_MIN := 0.12
+const PULSE_MAX := 0.32
 
 
 ## `skin` is the player's equipped entry from `PlayerProfile.SKINS`, and only
@@ -145,12 +147,19 @@ func _build_material(colour: Color) -> StandardMaterial3D:
 		# floating arrow or oversized marker.
 		material.rim_enabled = true
 		material.rim = 0.9
-		material.rim_tint = 0.35
+		# Low rim_tint mixes toward the light's colour rather than the marble's,
+		# which read as a plain white halo on the galaxy/magma skins. Tinting it
+		# mostly toward the marble's own colour keeps the identification cue
+		# without a white ring stamped over a skin's own palette.
+		material.rim_tint = 0.8
 		# A skin that paints its own emission — the galaxy's stars, the magma's
 		# veins — keeps it; overwriting it with a flat colour would throw the
 		# skin's whole look away for a cue the rim and the trail already carry.
-		# The pulse below then breathes through those veins instead.
-		if not MarbleSkin.has_emission(skin):
+		# It is not pulsed either (see `_process`): brightening an already-bright
+		# baked-in map pushes its hottest pixels toward white and buries the
+		# skin's own colours under the identification cue.
+		_pulses = not MarbleSkin.has_emission(skin)
+		if _pulses:
 			material.emission_enabled = true
 			material.emission = colour
 
@@ -158,7 +167,7 @@ func _build_material(colour: Color) -> StandardMaterial3D:
 
 
 func _process(delta: float) -> void:
-	if not is_player or _highlight_material == null:
+	if not is_player or not _pulses or _highlight_material == null:
 		return
 
 	# A slow breathing glow rather than a fixed one — motion is what catches a
