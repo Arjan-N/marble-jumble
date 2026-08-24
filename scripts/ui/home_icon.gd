@@ -22,8 +22,8 @@ func _draw() -> void:
 	elif kind == Kind.COIN:
 		_draw_coin(c, s * 0.76, w)
 	elif kind == Kind.MENU:
-		for y in [-0.22, 0.0, 0.22]:
-			draw_line(Vector2(c.x - s * 0.25, c.y + s * y), Vector2(c.x + s * 0.25, c.y + s * y), fill, w * 1.35, true)
+		for y in [-0.27, 0.0, 0.27]:
+			draw_line(Vector2(c.x - s * 0.28, c.y + s * y), Vector2(c.x + s * 0.28, c.y + s * y), stroke, w * 1.6, true)
 	elif kind == Kind.PLUS:
 		draw_line(Vector2(c.x - s * 0.22, c.y), Vector2(c.x + s * 0.22, c.y), fill, w * 1.4, true)
 		draw_line(Vector2(c.x, c.y - s * 0.22), Vector2(c.x, c.y + s * 0.22), fill, w * 1.4, true)

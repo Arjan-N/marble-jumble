@@ -13,13 +13,17 @@ const ICON_SCRIPT := preload("res://scripts/ui/home_icon.gd")
 # The play area is laid out from the mock-up (docs/ui-reference/home.png,
 # 1882x3344 — the same 9:16 as this viewport), so these are that image's own
 # measurements expressed as fractions of the screen.
-const MARBLE_RADIUS_FRACTION := 178.0 / 1882.0
-const MARBLE_CENTRE_Y_FRACTION := 2113.0 / 3344.0
+const MARBLE_RADIUS_FRACTION := 178.0 / 1882.0 * 0.8
+## Fixed independently of the platform box (home_play_surface.gd's TOP/BOTTOM
+## crop the art to fit that box, so the box's own edges don't mark the tile
+## line) — this is where the marble needs to sit for its base to read as
+## resting on the visible tile surface.
+const MARBLE_CENTRE_Y_FRACTION := 0.5985
 const MARBLE_REST_X_FRACTION := 896.0 / 1882.0
 ## How far either side of its resting spot the marble rolls. The mock-up is a
 ## still; the marble on Home has always moved, and this keeps it doing so
 ## without ever leaving the platform.
-const MARBLE_TRAVEL_FRACTION := 0.26
+const MARBLE_TRAVEL_FRACTION := 0.34
 const MARBLE_EDGE_MARGIN := 14.0
 
 const CREAM := Color(1.0, 0.965, 0.86)
@@ -62,12 +66,12 @@ func _build_top_bar() -> void:
 	menu.anchor_top = 0.025
 	menu.offset_right = 76.0
 	menu.offset_bottom = 76.0
-	menu.add_theme_stylebox_override("normal", _panel_style(BLUE, 5, 18, 7))
-	menu.add_theme_stylebox_override("hover", _panel_style(BLUE.lightened(0.08), 5, 18, 7))
-	menu.add_theme_stylebox_override("pressed", _panel_style(BLUE.darkened(0.12), 5, 18, 4))
-	menu.add_theme_stylebox_override("focus", _panel_style(BLUE, 5, 18, 7))
-	var menu_icon := _icon(ICON_SCRIPT.Kind.MENU, CREAM, 46.0)
-	menu_icon.position = Vector2(15, 15)
+	menu.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	menu.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
+	menu.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
+	menu.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	var menu_icon := _icon(ICON_SCRIPT.Kind.MENU, INK, 56.0)
+	menu_icon.position = Vector2(10, 10)
 	menu.add_child(menu_icon)
 	menu.pressed.connect(func() -> void: _show_toast("Menu coming soon"))
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -88,6 +92,7 @@ func _build_top_bar() -> void:
 	currency.offset_bottom = 71.5
 	currency.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	currency.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	currency.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	currency.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(currency)
 
@@ -115,8 +120,8 @@ func _build_logo() -> void:
 	logo.texture = LOGO_TEXTURE
 	logo.anchor_left = 0.07
 	logo.anchor_right = 0.93
-	logo.anchor_top = 0.09
-	logo.anchor_bottom = 0.40
+	logo.anchor_top = 0.13
+	logo.anchor_bottom = 0.44
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE

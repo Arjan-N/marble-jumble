@@ -3,19 +3,24 @@ extends TextureRect
 
 ## The illustrated stone platform the home marble sits on.
 ##
-## `play_surface.png` is cut from the home mock-up by
-## `tools/extract_home_art.gd` — see that script for why the artwork comes from
-## there. The mock-up and the project viewport share a 9:16 aspect, so the strip
-## spans the full screen width at the same proportions it was painted at and
-## needs no tiling or nine-patch.
+## `background_canyon_course.png` is a standalone strip (not cut from the home
+## mock-up) with rock/cactus dressing above the actual tile surface, so unlike
+## the old cropped-tight art it can't be stretched to exactly fill an
+## aspect-matched box — that left the tile line floating wherever the rocks
+## happened to land. Instead this crops in the same way `HomeBackdrop` does:
+## `STRETCH_KEEP_ASPECT_COVERED` zooms until the box is filled and trims the
+## sides, and the box itself is sized and positioned so the tile surface (not
+## the box's own top edge) lines up with the marble on Home, which is
+## positioned independently (see `MARBLE_CENTRE_Y_FRACTION`).
 
-const SURFACE_TEXTURE := preload("res://assets/ui/play_surface.png")
+const SURFACE_TEXTURE := preload("res://assets/ui/background_canyon_course.png")
 
-## Where the strip sat in the mock-up's 3344px-tall frame, as a fraction of the
-## screen. Everything else on this screen — the marble's resting height, the gap
-## to the nav row — is measured off these two numbers.
-const TOP := 2160.0 / 3344.0
-const BOTTOM := 2495.0 / 3344.0
+## Box the cropped platform fills, as fractions of the screen. Taller than the
+## old strip on purpose — the marble needs the tile surface at a fixed screen
+## position, and the rock dressing above it eats into the box before the tiles
+## start, so the box has to run higher to compensate.
+const TOP := 0.476
+const BOTTOM := 0.746
 
 
 func _ready() -> void:
@@ -28,10 +33,10 @@ func _ready() -> void:
 	offset_right = 0.0
 	offset_top = 0.0
 	offset_bottom = 0.0
-	# The strip's own aspect matches the box these anchors describe to within a
-	# pixel, so scaling to fill costs no visible distortion and guarantees the
-	# platform reaches both screen edges however the viewport is stretched.
+	# Crops rather than stretches — see the class comment. Centred cropping trims
+	# the sides evenly, which matches the art's roughly symmetric cactus/rock
+	# dressing at both ends.
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	stretch_mode = TextureRect.STRETCH_SCALE
-	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
