@@ -33,8 +33,30 @@ const SPEED := 110.0
 ## lighting rig.
 const AMBIENT := Color(1.0, 0.78, 0.58)
 const KEY_LIGHT := Color(1.0, 0.88, 0.72)
+## Light coming back up off the sunlit sandstone. Without it the underside falls
+## to flat ambient and the ball looks cut out and dropped in.
+const BOUNCE_LIGHT := Color(1.0, 0.72, 0.45)
+## The marble's own roughness belongs to `marble.gd` and is not ours to change,
+## so the raytraced pinpoint is damped at the light instead. Zero would read as
+## matte clay and throw away the one cue that says "marble".
+const KEY_SPECULAR := 0.3
+
+## Comic-book ink, the same near-black `HomeScreen` outlines its panels with.
+## Duplicated rather than referenced: `home_screen.gd` already depends on this
+## class, and a `const` reaching back the other way has to resolve at parse time,
+## which closes the cycle and fails to load. The project has no shared palette
+## module yet — `home_icon.gd` carries a third, slightly different near-black.
+const INK := Color(0.075, 0.032, 0.018)
+
+## Thickness of the ink line in design-space pixels (720 wide). Sits at the
+## chunky end of the band the rest of the screen uses: `HomeScreen` panel borders
+## are 5px, its label outlines 4-5px, and the ink between the platform blocks in
+## `play_surface.png` comes out at 2.5-4px once the mock-up is scaled down.
+const OUTLINE_PX := 4.0
 
 var _marble: Marble
+var _outline: MeshInstance3D
+var _shadow: MeshInstance3D
 var _camera: Camera3D
 var _viewport: SubViewport
 var _radius_world := 0.45
@@ -70,6 +92,7 @@ func _build(colour: Color) -> void:
 	_viewport.add_child(world)
 	world.add_child(_build_environment())
 	world.add_child(_build_light())
+	world.add_child(_build_bounce_light())
 
 	_camera = Camera3D.new()
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -82,7 +105,10 @@ func _build(colour: Color) -> void:
 
 	_marble = _build_marble(colour)
 	world.add_child(_marble)
-	world.add_child(_build_shadow())
+	_outline = _build_outline()
+	world.add_child(_outline)
+	_shadow = _build_shadow()
+	world.add_child(_shadow)
 
 
 func _ready() -> void:
@@ -110,6 +136,21 @@ func _build_light() -> DirectionalLight3D:
 	light.rotation_degrees = Vector3(-32.0, -25.0, 0.0)
 	light.light_color = KEY_LIGHT
 	light.light_energy = 1.35
+	light.light_specular = KEY_SPECULAR
+	return light
+
+
+## A dim warm fill from below, standing in for light thrown back off the stone.
+func _build_bounce_light() -> DirectionalLight3D:
+	var light := DirectionalLight3D.new()
+	# Up, and toward the side the key light throws the shadow onto.
+	light.rotation_degrees = Vector3(53.0, 30.0, 0.0)
+	light.light_color = BOUNCE_LIGHT
+	# Enough to warm the underside, not enough to flatten the ball. At 0.4 the
+	# lower half came up almost to the lit half and the form went out of it.
+	light.light_energy = 0.22
+	# Diffuse only. A fill that adds its own highlight defeats the point.
+	light.light_specular = 0.0
 	return light
 
 
@@ -137,12 +178,60 @@ func _build_marble(colour: Color) -> Marble:
 	return marble
 
 
+## The comic-book ink line every rock and block in the backdrop artwork carries,
+## and the marble did not — which is what made it read as pasted on rather than
+## painted in.
+##
+## An inverted hull, not a shader: a sphere a few screen pixels larger than the
+## marble with its front faces culled, so only its back half survives the depth
+## test and what is left over is a ring beyond the marble's silhouette. It stays
+## opaque on purpose — it has to write depth for the marble to cover it, and
+## making it transparent would drop it into the alpha pass alongside the contact
+## shadow and leave the order between all three undefined.
+##
+## Nothing in `marble.gd` or the marble's material is touched by this. It sits at
+## the origin as a sibling rather than a child because the marble never leaves
+## the origin — travel is the Control moving, not the ball. Move the marble in
+## world space and the outline comes off it.
+func _build_outline() -> MeshInstance3D:
+	var outline := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = _radius_world
+	mesh.height = _radius_world * 2.0
+	# Finer than the marble's own 16/8 (marble.gd:100). A hard black band makes
+	# faceting explicit, and the marble spins while this does not, so two coarse
+	# silhouettes would beat against each other and the line would throb as the
+	# ball rolls.
+	mesh.radial_segments = 48
+	mesh.rings = 24
+	outline.mesh = mesh
+
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = INK
+	material.cull_mode = BaseMaterial3D.CULL_FRONT
+	outline.material_override = material
+	# No shadow-casting light in here today, but a back-face-only inflated sphere
+	# is exactly the geometry that would throw a wrong one if anyone added one.
+	outline.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	outline.scale = Vector3.ONE * _outline_scale()
+	return outline
+
+
+## The camera is orthogonal and spans a fixed number of marble radii, so world
+## units map to pixels at exactly `_radius / _radius_world` and a screen-space
+## line width is just this much uniform inflation. Uniform positive scale keeps
+## the winding, so `CULL_FRONT` still means back-faces-only.
+func _outline_scale() -> float:
+	return 1.0 + OUTLINE_PX / _radius
+
+
 ## Contact shadow, flat under the ball and thrown to the right by the same low
 ## sun the platform artwork is lit by.
 func _build_shadow() -> MeshInstance3D:
 	var shadow := MeshInstance3D.new()
 	var quad := QuadMesh.new()
-	quad.size = Vector2(_radius_world * 3.0, _radius_world * 1.9)
+	quad.size = Vector2(_radius_world * 2.8, _radius_world * 1.6)
 	shadow.mesh = quad
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -151,17 +240,34 @@ func _build_shadow() -> MeshInstance3D:
 	# radial ramp is what makes it a shadow.
 	material.albedo_texture = _shadow_gradient()
 	shadow.material_override = material
-	# Just clear of the sphere so the two do not intersect, and pulled forward so
-	# the shallow camera angle does not hide it behind the ball.
-	shadow.position = Vector3(_radius_world * 0.35, -_radius_world * 1.02, _radius_world * 0.45)
+	# Pulled forward and out to the side, or the shallow camera angle and the ink
+	# line between them leave nothing of it showing past the ball.
+	shadow.position = Vector3(_radius_world * 0.8, _shadow_height(), _radius_world * 0.5)
 	shadow.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 	return shadow
 
 
+## Below the ink line, not below the marble. The outline hangs a few pixels
+## lower than the ball itself, and a quad at the ball's own base gets the hull's
+## bottom cap punched through the middle of it as a disc of solid black —
+## opaque geometry wins the depth test against an alpha-blended quad.
+func _shadow_height() -> float:
+	return -_radius_world * (_outline_scale() + 0.06)
+
+
 func _shadow_gradient() -> GradientTexture2D:
+	const SHADOW_INK := Color(0.16, 0.055, 0.02, 1.0)
 	var ramp := Gradient.new()
-	ramp.set_color(0, Color(0.13, 0.05, 0.02, 0.55))
-	ramp.set_color(1, Color(0.13, 0.05, 0.02, 0.0))
+	# Both default stops first, then the plateau. A new Gradient is black-to-white
+	# and `add_point` renumbers, so setting the far stop after inserting sets the
+	# inserted one instead and leaves an opaque white ring on the quad.
+	ramp.set_color(0, Color(SHADOW_INK, 0.72))
+	ramp.set_color(1, Color(SHADOW_INK, 0.0))
+	# A plateau rather than a plain falloff. The camera is close to side-on, so a
+	# ground quad's dense middle sits behind the ball and only its faint outer
+	# edge clears the silhouette — a straight centre-to-nothing ramp leaves
+	# nothing visible at all.
+	ramp.add_point(0.72, Color(SHADOW_INK, 0.58))
 	var texture := GradientTexture2D.new()
 	texture.gradient = ramp
 	texture.fill = GradientTexture2D.FILL_RADIAL
@@ -181,6 +287,10 @@ func set_display(centre: Vector2, radius: float) -> void:
 	_side = radius * 2.0 * VIEW_RADII
 	size = Vector2(_side, _side)
 	_camera.size = _radius_world * 2.0 * VIEW_RADII
+	# Both are pinned to the on-screen radius, so they follow it here rather than
+	# keeping whatever `_build` guessed from the default.
+	_outline.scale = Vector3.ONE * _outline_scale()
+	_shadow.position.y = _shadow_height()
 	_place(centre.x)
 
 
