@@ -13,14 +13,16 @@ jobs:
         with:
           lfs: true
 
-      - name: Generate debug keystore
+      - name: Ensure debug keystore
         run: |
-          keytool -genkeypair -v \
-            -keystore /root/debug.keystore \
-            -storepass android -keypass android \
-            -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ ! -f /root/debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore /root/debug.keystore \
+              -storepass android -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
 
       - name: Import project
         run: godot --headless --import
