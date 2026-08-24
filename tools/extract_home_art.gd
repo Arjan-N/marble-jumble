@@ -1,13 +1,13 @@
 extends SceneTree
 
-## Cuts the player marble and the foreground play surface out of the home
-## mock-up and writes them into `assets/ui/` as shipping textures.
+## Cuts the foreground play surface out of the home mock-up and writes it into
+## `assets/ui/` as a shipping texture.
 ##
 ##     godot --path . --headless --script res://tools/extract_home_art.gd
 ##
-## The mock-up is the only place either piece of artwork exists — there is no
-## standalone marble or platform asset in the repository — and promoting art
-## out of `docs/ui-reference/` is how `home_background.png` was produced too
+## The mock-up is the only place this artwork exists — there is no platform
+## asset in the repository — and promoting art out of `docs/ui-reference/` is
+## how `home_background.png` was produced too
 ## (see the header of `home_backdrop.gd`). Keeping the cut in a script rather
 ## than doing it by hand means the numbers below are reviewable and the
 ## textures can be regenerated if the mock-up is ever revised.
@@ -17,12 +17,6 @@ extends SceneTree
 ## 720x1280 design space by a single 720/1882 scale factor.
 
 const SOURCE := "res://docs/ui-reference/home.png"
-
-## The marble's dark outline, measured off the mock-up.
-const MARBLE_CENTRE := Vector2(896.0, 2113.0)
-const MARBLE_RADIUS := 178.0
-## A hair of padding so the outline is never clipped by the texture edge.
-const MARBLE_PAD := 9
 
 ## The platform band: from the back edge of the top face down through the dark
 ## base under the front face.
@@ -55,7 +49,6 @@ func _init() -> void:
 		return
 	source.convert(Image.FORMAT_RGBA8)
 
-	_write(_cut_marble(source), "res://assets/ui/marble_player.png")
 	_write(_cut_play_surface(source), "res://assets/ui/play_surface.png")
 	quit(0)
 
@@ -67,24 +60,6 @@ func _write(image: Image, path: String) -> void:
 		quit(1)
 		return
 	print("%s  %s" % [path, image.get_size()])
-
-
-## The marble, lifted off the canyon behind it as a round cut-out with a
-## one-pixel feather so the outline stays crisp without an aliased fringe.
-func _cut_marble(source: Image) -> Image:
-	var side := int(MARBLE_RADIUS) * 2 + MARBLE_PAD * 2
-	var origin := Vector2i(MARBLE_CENTRE) - Vector2i.ONE * (side / 2)
-	var cut := source.get_region(Rect2i(origin, Vector2i(side, side)))
-	var centre := Vector2(side, side) * 0.5
-
-	for y in side:
-		for x in side:
-			var distance := Vector2(x + 0.5, y + 0.5).distance_to(centre)
-			var alpha := clampf(MARBLE_RADIUS + 0.5 - distance, 0.0, 1.0)
-			var pixel := cut.get_pixel(x, y)
-			pixel.a = alpha
-			cut.set_pixel(x, y, pixel)
-	return cut
 
 
 func _cut_play_surface(source: Image) -> Image:

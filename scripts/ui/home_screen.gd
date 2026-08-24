@@ -17,7 +17,7 @@ const MARBLE_RADIUS_FRACTION := 178.0 / 1882.0
 const MARBLE_CENTRE_Y_FRACTION := 2113.0 / 3344.0
 const MARBLE_REST_X_FRACTION := 896.0 / 1882.0
 ## How far either side of its resting spot the marble rolls. The mock-up is a
-## still; the marble itself has always moved, and this keeps it doing so
+## still; the marble on Home has always moved, and this keeps it doing so
 ## without ever leaving the platform.
 const MARBLE_TRAVEL_FRACTION := 0.26
 const MARBLE_EDGE_MARGIN := 14.0
@@ -29,7 +29,7 @@ const TOAST_SECONDS := 1.6
 
 var _backdrop: HomeBackdrop
 var _play_surface: HomePlaySurface
-var _marble: HomeMarble
+var _marble: HomeMarblePreview
 var _toast: Label
 var _toast_left := 0.0
 var _coins_label: Label
@@ -125,33 +125,35 @@ func _build_logo() -> void:
 func _build_play_area() -> void:
 	# The mock-up's play area, in the mock-up's own proportions: an illustrated
 	# stone platform across the lower middle of the screen with the player's
-	# marble resting on it. Both pieces of artwork and every number below come
+	# marble resting on it. The platform artwork and every number below come
 	# from `docs/ui-reference/home.png`, which shares this viewport's 9:16
-	# aspect, so the composition transfers directly.
+	# aspect, so the composition transfers directly. The marble itself is not
+	# artwork — it is the game's own `Marble`, rendered in 3D by
+	# `HomeMarblePreview`.
 	_play_surface = HomePlaySurface.new()
 	add_child(_play_surface)
 
-	_marble = HomeMarble.create(size.x * MARBLE_RADIUS_FRACTION, PlayerProfile.equipped_skin)
+	_marble = HomeMarblePreview.create(PlayerProfile.equipped_colour())
 	add_child(_marble)
 	_layout_marble()
 	resized.connect(_layout_marble)
 
-## Keeps the marble on the platform at whatever size the portrait viewport ends
-## up: its resting spot and the height it sits at are fractions of the screen,
-## and its patrol stays inside the platform and well above the nav row.
+## Puts the marble on the platform at whatever size the portrait viewport ends
+## up: its resting spot, the height it sits at and its size are all fractions of
+## the screen, taken from the mock-up, and its roll stays inside the platform
+## and well clear of the nav row.
 func _layout_marble() -> void:
 	if _marble == null:
 		return
 	var radius := size.x * MARBLE_RADIUS_FRACTION
-	_marble.set_radius(radius)
-	_marble.position.y = size.y * MARBLE_CENTRE_Y_FRACTION
-	var half_travel := size.x * MARBLE_TRAVEL_FRACTION
 	var rest := size.x * MARBLE_REST_X_FRACTION
+	_marble.set_display(Vector2(rest, size.y * MARBLE_CENTRE_Y_FRACTION), radius)
+	var half_travel := size.x * MARBLE_TRAVEL_FRACTION
 	_marble.set_travel(
 		maxf(rest - half_travel, radius + MARBLE_EDGE_MARGIN),
 		minf(rest + half_travel, size.x - radius - MARBLE_EDGE_MARGIN)
 	)
-	_marble.rest_at(rest)
+
 func _build_toast() -> void:
 	_toast = Label.new()
 	_toast.anchor_left = 0.0
