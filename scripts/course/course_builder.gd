@@ -99,6 +99,23 @@ const WIDTH_KEYS := [
 const SPLIT_RANGE := Vector2(0.63, 0.71)
 const JUMP_GAP_RANGE := Vector2(0.795, 0.825)
 const BUMPER_AT := 0.885
+
+## The gap has no ramp of its own — the floor just stops, so a marble takes off
+## carrying whatever vertical speed the descent already gave it, not an upward
+## one. That is fine at a crawl; once the field is actually moving (see
+## `_bank_at`'s comment — this jump used to be unreachable at speed because
+## the field never got this far intact) a marble arrives already descending
+## at several m/s, dips below the resumed floor's height before it gets there
+## horizontally, and sails under its leading edge into open air for good.
+## `tools/probe_bumper_speed_temp.gd`-style tracing (a marble's velocity
+## logged across ratio 0.79-0.95) showed exactly that: a clean gravity-only
+## trajectory from the moment the floor disappears, never interrupted by a
+## landing. A short, smooth ramp right at the take-off edge — tilted upward
+## rather than flat — turns that same speed into a genuine arc that clears
+## the gap with room to spare instead of undercutting the landing.
+const JUMP_RAMP_LENGTH := 3.0
+const JUMP_RAMP_TILT := deg_to_rad(16.0)
+const JUMP_RAMP_THICKNESS := 0.4
 const ROUGH_UNTIL := 0.55 ## Rough canyon stone before here, smoother build after.
 
 const ROUGH_FRICTION := 0.55
@@ -139,6 +156,7 @@ func build() -> void:
 
 	_add_back_wall()
 	_add_split_divider()
+	_add_jump_ramp()
 	_add_bumper()
 
 
@@ -175,10 +193,25 @@ func _tangent_at(offset: float) -> Vector3:
 
 ## Bank from the centreline's curvature, measured over a fixed baseline so the
 ## result is the same whatever the ring spacing is.
+##
+## Only the horizontal turn matters here — banking reacts to a bend, not to a
+## change in descent grade. Feeding the raw 3D tangents to `signed_angle_to`
+## measured the *full* angle between them, pitch included, so an ordinary
+## easing of the slope (no lateral turn at all) read as a large turn rate.
+## Worse, on a stretch straight in X the two tangents' X components are both
+## essentially zero, so the sign of that spurious turn rate was decided by
+## sub-millimetre floating-point noise — banking flipped by double digits of
+## degrees between adjacent rings with nothing in the geometry to justify it,
+## and that discontinuity in the swept cross-section is what trapped the
+## field around ratio 0.66. Flattening both tangents onto the horizontal
+## plane before comparing measures yaw alone, which is zero exactly where a
+## straight course actually is straight.
 func _bank_at(offset: float) -> float:
 	var behind := _tangent_at(offset - BANK_BASELINE)
 	var ahead := _tangent_at(offset + BANK_BASELINE)
-	var turn_rate := behind.signed_angle_to(ahead, Vector3.UP) / (2.0 * BANK_BASELINE)
+	var behind_flat := Vector3(behind.x, 0.0, behind.z).normalized()
+	var ahead_flat := Vector3(ahead.x, 0.0, ahead.z).normalized()
+	var turn_rate := behind_flat.signed_angle_to(ahead_flat, Vector3.UP) / (2.0 * BANK_BASELINE)
 	# Negated: rotating about the forward axis by a positive angle drops the
 	# right-hand edge, so the raw turn rate banks the inside of the corner up and
 	# tips marbles out of the channel instead of holding them in it.
@@ -358,6 +391,30 @@ func _add_split_divider() -> void:
 			SMOOTH_FRICTION
 		)
 		s = next
+
+
+## A short, upward-tilted lip right at the gap's take-off edge. See
+## `JUMP_RAMP_LENGTH`'s comment for why the gap needs one at all.
+##
+## Built from the same `_frame_at` the rest of the ribbon uses, so it inherits
+## the trough's own banking (none here, but the next jump this technique gets
+## reused for might not be so lucky) rather than assuming the course is flat.
+## Tilting a box around its local right axis lifts the end further along the
+## track (`-forward` locally) and sinks the trailing end into the existing
+## floor by the same amount; the sunk end is a harmless overlap between two
+## static bodies, and the lifted end is the whole point.
+func _add_jump_ramp() -> void:
+	var gap_offset := _offset_for_ratio(JUMP_GAP_RANGE.x)
+	var frame := _frame_at(gap_offset - JUMP_RAMP_LENGTH * 0.5)
+	var half_width := _width_at(JUMP_GAP_RANGE.x)
+
+	var tilt := Transform3D(Basis(Vector3.RIGHT, JUMP_RAMP_TILT), Vector3.ZERO)
+	_add_box(
+		frame * tilt,
+		Vector3(half_width * 2.0, JUMP_RAMP_THICKNESS, JUMP_RAMP_LENGTH),
+		ROUGH_COLOUR.darkened(0.15),
+		SMOOTH_FRICTION
+	)
 
 
 func _add_bumper() -> void:

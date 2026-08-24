@@ -64,20 +64,41 @@ const PLAYER_NAME := "You"
 ## directly: a global class name is not a constant expression, so an array of
 ## bare class names does not parse.
 ##
-## `CourseBuilder` (the curved Canyon) is included as-is even though its own
-## comments note it can stall its field around ratio 0.66 — a known rough edge
-## in the pool, not a reason to quietly drop it.
-## `course_builder.gd` (the curved Canyon) is deliberately absent: its field
-## reliably stalls part-way down and almost nobody finishes. Investigated and
-## not yet solved — the centreline itself is clean (monotonic descent, minimum
-## grade ~5 degrees, measured with `tools/probe_curve.gd`), and removing the
-## split divider does not fix it either, so the cause is elsewhere in the swept
-## geometry. Left in the repo to be fixed later rather than deleted.
+## `CourseBuilder` (the curved Canyon) took two fixes to get here.
+##
+## First, a stall at ratio 0.66: the trough's banking flipped sign by double
+## digits of degrees between adjacent rings on a stretch that was straight in
+## X, wedging marbles in the resulting seam. `CourseBuilder._bank_at` was
+## measuring the raw 3D angle between tangents rather than the horizontal
+## turn alone, so an ordinary change in descent grade (no lateral turn at
+## all) read as a spurious turn, with its sign decided by floating-point
+## noise once the lateral component was exactly zero — fixed by flattening
+## both tangents onto the horizontal plane before comparing (see
+## `_bank_at`'s comment).
+##
+## That fix unmasked a second problem the wedge had been hiding: with
+## marbles no longer stuck early, they reached the jump (ratio 0.795-0.825)
+## at full speed for the first time, already descending several m/s with no
+## upward launch of their own, and dove under the resumed floor's leading
+## edge instead of landing on it — a clean, uninterrupted gravity arc from
+## the moment the floor disappeared to the fall threshold, confirmed with a
+## marble's velocity traced across the gap. Fixed with an actual ramp —
+## `_add_jump_ramp`, a short upward-tilted lip right at the take-off edge —
+## rather than retuning the descent, since the jump is a spec'd feature and
+## the gap itself was never the problem.
+##
+## Verified with `tools/probe_stall.gd` (field clears both ratios cleanly)
+## and with real `race_manager` runs on `main.tscn` headless
+## (`DEBUG_TRACE`): 12/12 and 9/12 finished across two full-field rounds.
+## Some falls remain — plausible for an obstacle course, matching what the
+## other pool courses already show — not a stall. Re-run
+## `tools/probe_stall.gd` first if this course misbehaves again.
 const COURSE_POOL: Array[GDScript] = [
 	preload("res://scripts/course/slope_course.gd"),
 	preload("res://scripts/course/jungle_course.gd"),
 	preload("res://scripts/course/orbital_course.gd"),
 	preload("res://scripts/course/volcano_course.gd"),
+	preload("res://scripts/course/course_builder.gd"),
 ]
 
 enum Phase { SETTLING, RACING, COMPLETE }
