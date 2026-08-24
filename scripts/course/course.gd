@@ -48,6 +48,14 @@ func start_width() -> float:
 	return 6.8
 
 
+## Whether `position` is resting on/in this course's water. `false` for a
+## course with none — same shape as `jump_clearance`: the race polls this
+## every physics frame rather than the course reaching into `Marble` state
+## itself, because only the course knows where its own water is.
+func in_water(_position: Vector3) -> bool:
+	return false
+
+
 ## Signed distance, in metres, from a position to the far edge of the course's
 ## jump: negative while short of the landing, positive once past it. `INF` when
 ## the position is nowhere near a jump, and for courses that have none.

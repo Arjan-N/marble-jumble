@@ -120,22 +120,119 @@ const ROUGH_UNTIL := 0.55 ## Rough canyon stone before here, smoother build afte
 
 const ROUGH_FRICTION := 0.55
 const SMOOTH_FRICTION := 0.25
-const ROUGH_COLOUR := Color(0.62, 0.47, 0.36)
+## Warmed further, toward the Home screen's terracotta trail colour. The old
+## value already dodged the "reads as grey/ice under ambient sky" problem
+## `SMOOTH_COLOUR`'s comment describes, but it was still muted enough to read
+## as flat brown rather than sunlit red-orange dirt once the sky and canyon
+## dressing turned more vivid around it.
+const ROUGH_COLOUR := Color(0.68, 0.42, 0.27)
 ## Was a near-neutral (0.48, 0.50, 0.54). With default specular still on (see
 ## `_build_surface`) and roughness at 0.9 rather than fully killed, a colour
 ## this close to grey shows the sky's own blue rather than any tone of its
 ## own — the same problem `slope_course.gd`'s SURFACE_SMOOTH had. Warmed to
-## read as pale stone instead of ice.
-const SMOOTH_COLOUR := Color(0.58, 0.52, 0.42)
+## read as pale stone instead of ice, and warmed again here to sandy tan
+## rather than beige-grey, matching the poured-stone colour in the Home
+## screen art.
+const SMOOTH_COLOUR := Color(0.70, 0.58, 0.42)
 
 ## Marbles below this are out of bounds. Must stay clear of the finish, which
 ## is the lowest point of the course. Tunable, per the spec.
 const FALL_THRESHOLD_Y := -60.0
 
+# --- Canyon dressing (visual only) ---------------------------------------------
+##
+## Everything below is cosmetic. It follows the same ring frames the collision
+## surface is built from, but never adds a StaticBody or a PhysicsMaterial — the
+## marbles' world is exactly the swept ribbon above; this dresses the air around
+## it in the Home screen's stylized Southwestern-canyon language (stacked
+## red-rock strata, saguaro cacti, distant mesas, a vivid desert sky) so the
+## placeholder trough reads as a canyon rather than a grey chute.
+
+## Every Nth ring. Rings are `RING_SPACING` (0.35m) apart, which is far finer
+## than dressing needs — striding keeps the extra mesh cheap over a course this
+## long and gives the cliff face a slightly faceted, rock-like silhouette rather
+## than a perfectly smooth one.
+const DRESSING_RING_STEP := 6
+
+## Two bands rising from the collision wall's own top edge, stepping outward as
+## they climb — same idea as slope_course.gd's WALL_TIERS, sized down to two
+## bands. First point of each ring's dressing profile sits exactly on the
+## existing wall top, so there is no seam between collidable and cosmetic rock.
+## First render came back a near-vertical 10m slot with no sky visible over it
+## from the low camera — the opposite of the Home screen art, where the walls
+## step outward hard enough that sky and rim cacti stay in shot. Cut the added
+## height by nearly half and roughly tripled the outward step per tier so the
+## profile opens up rather than towering.
+const DRESSING_TIERS := [
+	{"height": 1.8, "outset": 1.0, "colour": Color(0.55, 0.28, 0.18)},
+	{"height": 2.4, "outset": 2.6, "colour": Color(0.74, 0.42, 0.24)},
+]
+const DRESSING_RIM_COLOUR := Color(0.86, 0.62, 0.38)
+## How much a band's colour may drift from its base, so the strata are not flat
+## ribbons. Deterministic, like slope_course.gd's `_weathered` — a restart must
+## rebuild the same course.
+const DRESSING_COLOUR_VARIANCE := 0.10
+
+## Saguaro cacti perched along the canyon rim, alternating sides.
+const CACTUS_SPACING := 9.0
+const CACTUS_COLOUR := Color(0.26, 0.42, 0.27)
+
+## Distant stepped hoodoos beyond the rim, the same silhouette the Home screen
+## backdrop recedes into.
+const MESA_SPACING := 24.0
+const MESA_COLOUR := Color(0.58, 0.30, 0.20)
+const MESA_RIM_COLOUR := Color(0.80, 0.50, 0.30)
+
+## A river crossing the gap. The first attempt was a flat plane far below —
+## still read as a square hole with a blue floor, because there was 16m of
+## unlit empty air between the floor's cut edge and the water with nothing
+## bridging them. This version instead slopes the floor edge down into the
+## water on both sides, close enough that the gap reads as a crossing rather
+## than a shaft.
+##
+## No longer visual-only: it used to be safe to skip collision because a
+## marble that reached it was already eliminated by the global
+## `fall_threshold_y` long before falling this far — the water sat only
+## `RIVER_DEPTH` below the local floor, but the course descends so much
+## between here and the finish (which has to stay above the one fixed
+## threshold that applies everywhere) that a marble fell the better part of
+## 30m through empty space before that threshold ever caught it. Real
+## collision plus `in_water` (below) replaces that: a marble that misses the
+## jump now visibly lands in the water and is caught there — see race_manager
+## `_check_for_falls` — rather than free-falling well past it.
+## Raised from 1.8 to 1.0 alongside that — the point wasn't ever really "how
+## deep is the river", it was "how far below the floor a marble had to fall
+## before anything happened", and that distance reads better close.
+const RIVER_DEPTH := 1.0
+## Fraction of the gap's own length each bank consumes sloping down to the
+## water, leaving the middle as open water. Symmetric, so the two banks always
+## leave *some* water between them regardless of how long the gap ends up.
+## Raised from 0.38 alongside the shallower depth so the slope actually faces
+## the sun rather than its own shadow.
+const RIVER_BANK_FRACTION := 0.42
+## Sunlit wet sand, not shadowed mud — the first attempt at this colour was
+## dark enough that ambient-only light rendered it almost black, which read as
+## exactly the void this bank exists to get rid of.
+const RIVER_BANK_COLOUR := Color(0.58, 0.44, 0.30)
+const WATER_SHADER: Shader = preload("res://scripts/course/water.gdshader")
+## How far a position may be above the water's own local surface height and
+## still count as "in the water" for `in_water` — a little more than a
+## marble's own diameter, so the countdown starts the moment it visibly
+## breaks the surface rather than only once it has come fully to rest.
+const WATER_CONTACT_MARGIN := 1.0
+## How far the river's collider reaches past the gap's own edges, flush with
+## the floor there — closes the seam against `_build_surface`'s ribbon. Same
+## idea, same size, as `JungleCourse.RUN_OVERLAP`.
+const RIVER_OVERLAP := 0.4
+
 var _length := 0.0
 var _race_start_offset := 0.0
 var _race_length := 0.0
 var _rings: Array[Dictionary] = []
+## The flat open-water span of the river, as along-course offsets — set by
+## `_add_river`, read by `in_water`.
+var _water_start_offset := 0.0
+var _water_end_offset := 0.0
 
 
 func build() -> void:
@@ -158,6 +255,11 @@ func build() -> void:
 	_add_split_divider()
 	_add_jump_ramp()
 	_add_bumper()
+	_add_river()
+
+	_build_canyon_dressing()
+	_build_mesas()
+	_build_cacti()
 
 
 # --- Centreline ---------------------------------------------------------------
@@ -423,6 +525,346 @@ func _add_bumper() -> void:
 	add_child(bumper)
 
 
+## Three pieces, all sharing the gap's own width so nothing steps in from the
+## walls: a bank sloping down from the takeoff floor, open water in the
+## middle, and a bank sloping back up to the landing floor. Both banks slope
+## from y=0 (flush with the floor they grow out of, so there is no seam) down
+## to -RIVER_DEPTH, at whatever offset that bank's own share of the gap ends.
+##
+## Real collision now (see `_add_river_collision`), so a marble that misses
+## the jump lands in the gap rather than falling through it — `in_water`
+## below is what turns landing there into an elimination. Visuals are still
+## three separate quads (`_add_river_visual`), one per piece; collision is
+## deliberately not split the same way — see that function's comment.
+func _add_river() -> void:
+	var gap_start := _offset_for_ratio(JUMP_GAP_RANGE.x)
+	var gap_end := _offset_for_ratio(JUMP_GAP_RANGE.y)
+	var bank_run := (gap_end - gap_start) * RIVER_BANK_FRACTION
+	_water_start_offset = gap_start + bank_run
+	_water_end_offset = gap_end - bank_run
+
+	_add_river_collision(gap_start, gap_end)
+
+	_add_river_visual(gap_start, _water_start_offset, 0.0, -RIVER_DEPTH, RIVER_BANK_COLOUR, false)
+	_add_river_visual(gap_end, _water_end_offset, 0.0, -RIVER_DEPTH, RIVER_BANK_COLOUR, false)
+	_add_river_visual(
+		_water_start_offset, _water_end_offset, -RIVER_DEPTH, -RIVER_DEPTH, Color.WHITE, true
+	)
+
+
+## Four quads (bank, water, bank, ordered start to end, plus the two overlap
+## slivers below) baked into *one* `ConcavePolygonShape3D` rather than one
+## body per piece. `JungleCourse._runs`'s own comment already found this the
+## hard way: "two trimeshes sharing an edge have no thickness between them,
+## and a marble arriving at the join goes through it" — three separate river
+## bodies meeting at bare edges tunnelled a marble clean through into an
+## unbounded fall the first time this was tried.
+##
+## The two outer quads run `RIVER_OVERLAP` past `gap_start`/`gap_end` at
+## y=0 — flush with, and overlapping into, `_build_surface`'s own floor,
+## which already stops slightly before the gap (`_in_range` skips the ring
+## exactly at the gap's edge). Same fix, same reasoning, for the same
+## failure mode: `JungleCourse`'s `RUN_OVERLAP`.
+func _add_river_collision(gap_start: float, gap_end: float) -> void:
+	var faces := PackedVector3Array()
+	faces.append_array(_river_quad(gap_start - RIVER_OVERLAP, gap_start, 0.0, 0.0))
+	faces.append_array(_river_quad(gap_start, _water_start_offset, 0.0, -RIVER_DEPTH))
+	faces.append_array(
+		_river_quad(_water_start_offset, _water_end_offset, -RIVER_DEPTH, -RIVER_DEPTH)
+	)
+	faces.append_array(_river_quad(_water_end_offset, gap_end, -RIVER_DEPTH, 0.0))
+	faces.append_array(_river_quad(gap_end, gap_end + RIVER_OVERLAP, 0.0, 0.0))
+
+	var body := StaticBody3D.new()
+	var physics_material := PhysicsMaterial.new()
+	physics_material.friction = SMOOTH_FRICTION
+	# Water absorbs a fall rather than bouncing it — a marble that lands here
+	# should visibly settle, not carry on bouncing across the surface.
+	physics_material.bounce = 0.0
+	body.physics_material_override = physics_material
+
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	shape.backface_collision = true
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	body.add_child(collider)
+	add_child(body)
+
+
+## The two triangles of a quad between two along-course offsets, each end at
+## its own height and spanning the full floor width there — so it reads (and
+## collides) as growing straight out of the ribbon rather than as an inset
+## shape floating inside the gap.
+func _river_quad(
+	from_offset: float, to_offset: float, from_y: float, to_y: float
+) -> PackedVector3Array:
+	var from_frame := _frame_at(from_offset)
+	var to_frame := _frame_at(to_offset)
+	var from_half_width := _width_at((from_offset - _race_start_offset) / _race_length)
+	var to_half_width := _width_at((to_offset - _race_start_offset) / _race_length)
+
+	var a: Vector3 = from_frame * Vector3(-from_half_width, from_y, 0.0)
+	var b: Vector3 = from_frame * Vector3(from_half_width, from_y, 0.0)
+	var c: Vector3 = to_frame * Vector3(to_half_width, to_y, 0.0)
+	var d: Vector3 = to_frame * Vector3(-to_half_width, to_y, 0.0)
+	return PackedVector3Array([a, b, c, a, c, d])
+
+
+## Visual twin of one `_river_quad`, kept separate per piece (unlike
+## collision) so the sand banks and the water can carry different materials.
+func _add_river_visual(
+	from_offset: float, to_offset: float, from_y: float, to_y: float, colour: Color, is_water: bool
+) -> void:
+	var points := _river_quad(from_offset, to_offset, from_y, to_y)
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for point in points:
+		tool.add_vertex(point)
+	tool.generate_normals()
+
+	var visual := MeshInstance3D.new()
+	visual.mesh = tool.commit()
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	if is_water:
+		# Unlike the rest of the canyon's matte rock (see `_dressing_material`),
+		# water gets its own shader — a moving surface is what actually reads
+		# as liquid rather than another tinted, static rock band at the bottom
+		# of the gap.
+		var shader_material := ShaderMaterial.new()
+		shader_material.shader = WATER_SHADER
+		visual.material_override = shader_material
+	else:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = colour
+		material.metallic = 0.0
+		# A single quad's winding can face either way depending on which end
+		# is "from" and which is "to" — drawing both sides is simpler than
+		# getting that right, and costs nothing on four small triangles.
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		material.roughness = 1.0
+		material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		visual.material_override = material
+
+	add_child(visual)
+
+
+# --- Canyon dressing (visual only) ---------------------------------------------
+
+
+func _build_canyon_dressing() -> void:
+	for side: float in [-1.0, 1.0]:
+		_build_dressing_side(side)
+
+
+func _build_dressing_side(side: float) -> void:
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var i := 0
+	while i < _rings.size() - 1:
+		var next_i := mini(i + DRESSING_RING_STEP, _rings.size() - 1)
+		var here := _dressing_profile(_rings[i], i, side)
+		var ahead := _dressing_profile(_rings[next_i], next_i, side)
+		for band in here.size() - 1:
+			_add_dressing_quad(tool, here[band], here[band + 1], ahead[band + 1], ahead[band])
+		i = next_i
+
+	tool.generate_normals()
+	var mesh := tool.commit()
+
+	var material := StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.roughness = 1.0
+	material.metallic = 0.0
+	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = material
+	# The whole point of the original 2.4m wall height was staying short enough
+	# not to shadow the track (`_setup_environment`'s ambient-light comment).
+	# This dressing rises to ~10m specifically to read as canyon walls from the
+	# low camera, so it would re-introduce that problem for real if it cast
+	# shadows — it does not need to, since it is backdrop, not a light-blocker.
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(visual)
+
+
+## Points (with per-vertex colour) running from the collision wall's own top
+## rim outward and upward through `DRESSING_TIERS`, ending in a sun-bleached cap.
+func _dressing_profile(ring: Dictionary, index: int, side: float) -> Array:
+	var frame: Transform3D = ring["frame"]
+	var half_width: float = ring["half_width"]
+	var flat := half_width * FLAT_FRACTION
+	var rise := half_width - flat + WALL_LEAN
+	var top_out := flat + rise
+
+	var out := top_out
+	var height := WALL_HEIGHT
+	var points := [{
+		"pos": frame * Vector3(side * out, height, 0.0),
+		"colour": _dressing_weathered(DRESSING_TIERS[0]["colour"], index),
+	}]
+
+	for t in DRESSING_TIERS.size():
+		var tier: Dictionary = DRESSING_TIERS[t]
+		out += float(tier["outset"])
+		height += float(tier["height"])
+		points.append({
+			"pos": frame * Vector3(side * out, height, 0.0),
+			"colour": _dressing_weathered(tier["colour"], index + t * 13),
+		})
+
+	points.append({
+		"pos": frame * Vector3(side * out, height + 0.4, 0.0),
+		"colour": DRESSING_RIM_COLOUR,
+	})
+	return points
+
+
+func _dressing_weathered(base: Color, index: int) -> Color:
+	var noise := fmod(sin(float(index) * 12.9898) * 43758.5453, 1.0)
+	return base.lightened(absf(noise) * DRESSING_COLOUR_VARIANCE)
+
+
+func _add_dressing_quad(tool: SurfaceTool, a: Dictionary, b: Dictionary, c: Dictionary, d: Dictionary) -> void:
+	for point: Dictionary in [a, b, c, a, c, d]:
+		tool.set_color(point["colour"])
+		tool.add_vertex(point["pos"])
+
+
+## Distant stepped hoodoos beyond the rim — the Home screen backdrop's receding
+## red-rock towers, rebuilt as a few stacked boxes per marker.
+func _build_mesas() -> void:
+	var placed := 0.0
+	var index := 0
+	while placed < _length:
+		placed += MESA_SPACING
+		index += 1
+		var side := 1.0 if index % 2 == 0 else -1.0
+		var jitter := fmod(float(index) * 0.71, 1.0)
+		var distance := 9.0 + jitter * 7.0
+		var base_transform := _frame_at(placed).translated_local(Vector3(side * distance, -2.0, 0.0))
+		_add_mesa(base_transform, index)
+
+
+func _add_mesa(base_transform: Transform3D, index: int) -> void:
+	var height := 0.0
+	var width := 3.2 + fmod(float(index) * 0.53, 2.2)
+
+	for t in 3:
+		var tier_height := (5.0 - float(t) * 1.1) + fmod(float(index + t) * 0.37, 1.5)
+		var tier_width := width * (1.0 - float(t) * 0.22)
+		var colour := MESA_COLOUR.lightened(float(t) * 0.12 + fmod(float(index) * 0.05, 0.08))
+
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(tier_width, tier_height, tier_width)
+		var visual := MeshInstance3D.new()
+		visual.mesh = mesh
+		visual.material_override = _dressing_material(colour)
+		visual.transform = base_transform.translated_local(Vector3(0.0, height + tier_height * 0.5, 0.0))
+		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(visual)
+
+		height += tier_height
+
+	var cap := BoxMesh.new()
+	cap.size = Vector3(width * 0.5, 0.5, width * 0.5)
+	var cap_visual := MeshInstance3D.new()
+	cap_visual.mesh = cap
+	cap_visual.material_override = _dressing_material(MESA_RIM_COLOUR)
+	cap_visual.transform = base_transform.translated_local(Vector3(0.0, height + 0.25, 0.0))
+	cap_visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(cap_visual)
+
+
+## Saguaro cacti perched on the canyon rim. Alternating sides, some with one
+## arm, a few with two — enough variety that a run down the course doesn't read
+## as one prop copy-pasted.
+func _build_cacti() -> void:
+	var placed := 0.0
+	var index := 0
+	while placed < _length:
+		placed += CACTUS_SPACING
+		index += 1
+		var side := 1.0 if index % 2 == 0 else -1.0
+
+		var ratio := (placed - _race_start_offset) / _race_length
+		var half_width := _width_at(ratio)
+		var flat := half_width * FLAT_FRACTION
+		var rise := half_width - flat + WALL_LEAN
+		var top_out := flat + rise
+		var tier0: Dictionary = DRESSING_TIERS[0]
+
+		var perch := _frame_at(placed).translated_local(Vector3(
+			side * (top_out + float(tier0["outset"]) * 0.5),
+			WALL_HEIGHT + float(tier0["height"]) * 0.25,
+			0.0
+		))
+		_add_cactus(perch, index)
+
+
+func _add_cactus(cactus_transform: Transform3D, index: int) -> void:
+	var root := Node3D.new()
+	root.transform = cactus_transform
+	add_child(root)
+
+	var material := _dressing_material(CACTUS_COLOUR.lightened(fmod(float(index) * 0.13, 0.12)))
+	var trunk_height := 1.8 + fmod(float(index) * 0.31, 1.2)
+	_add_cactus_limb(root, trunk_height, 0.22, material)
+
+	if index % 3 != 0:
+		_add_cactus_arm(root, Vector3(0.28, trunk_height * 0.55, 0.0), trunk_height * 0.45, material)
+	if index % 5 == 0:
+		_add_cactus_arm(root, Vector3(-0.26, trunk_height * 0.4, 0.0), trunk_height * 0.35, material)
+
+
+func _add_cactus_limb(root: Node3D, height: float, radius: float, material: StandardMaterial3D) -> void:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius * 0.85
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 6
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = material
+	visual.position = Vector3(0.0, height * 0.5, 0.0)
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(visual)
+
+
+func _add_cactus_arm(root: Node3D, base: Vector3, height: float, material: StandardMaterial3D) -> void:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.14
+	mesh.bottom_radius = 0.16
+	mesh.height = height
+	mesh.radial_segments = 6
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = material
+	var lean := 0.35 * signf(base.x)
+	visual.transform = Transform3D(
+		Basis(Vector3.BACK, lean), base + Vector3(0.0, height * 0.5, 0.0)
+	)
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(visual)
+
+
+## Rock is not plastic: fully rough, no metallic, specular killed outright — same
+## reasoning as `slope_course.gd`'s `_material`. Named distinctly because this
+## file already has an inline material builder inside `_build_surface`.
+func _dressing_material(colour: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = colour
+	material.roughness = 1.0
+	material.metallic = 0.0
+	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	return material
+
+
 func _add_box(
 	transform: Transform3D, size: Vector3, colour: Color, friction: float
 ) -> void:
@@ -488,6 +930,26 @@ func _in_range(ratio: float, bounds: Vector2) -> bool:
 
 func fall_threshold_y() -> float:
 	return FALL_THRESHOLD_Y
+
+
+## True once `position` is at or below the river's own surface height, within
+## `WATER_CONTACT_MARGIN` of the along-course span `_add_river` recorded.
+## Position is checked in the water quad's own frame rather than world space
+## because the course descends and turns — "at the water's height" only means
+## anything measured against the frame at that point along it.
+func in_water(position: Vector3) -> bool:
+	var offset := curve.get_closest_offset(position)
+	if offset < _water_start_offset - 1.0 or offset > _water_end_offset + 1.0:
+		return false
+
+	var clamped := clampf(offset, _water_start_offset, _water_end_offset)
+	var frame := _frame_at(clamped)
+	var half_width := _width_at((clamped - _race_start_offset) / _race_length)
+	var local := frame.affine_inverse() * position
+	if absf(local.x) > half_width + 0.5:
+		return false
+
+	return local.y < -RIVER_DEPTH + WATER_CONTACT_MARGIN
 
 
 ## Starting slots on the ramp, subtly varied per race so opening states are

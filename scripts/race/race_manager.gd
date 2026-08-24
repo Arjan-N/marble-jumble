@@ -98,6 +98,11 @@ const COURSE_POOL: Array[GDScript] = [
 	preload("res://scripts/course/jungle_course.gd"),
 	preload("res://scripts/course/orbital_course.gd"),
 	preload("res://scripts/course/volcano_course.gd"),
+	# Sky Ruins is written but not race-ready: `tools/probe_sky_ruins.gd` still
+	# reproduces its documented spiral stall (8/12 finish, the rest stick at
+	# fraction ~0.46-0.50 permanently). Left out of the pool until that's
+	# fixed — see the Sky Ruins course-in-progress notes for where it stands.
+	# preload("res://scripts/course/sky_ruins_course.gd"),
 	preload("res://scripts/course/course_builder.gd"),
 ]
 
@@ -125,6 +130,20 @@ var _round_number := 1
 ## "" while the tournament is ongoing; "won" or "eliminated" once the player's
 ## run through it is decided. Only ever set in `_resolve_round`.
 var _tournament_outcome := ""
+
+## How long a marble sits in water before it's eliminated — randomised per
+## marble so a pile-up in the water doesn't sink as one visibly synchronised
+## beat. `_water_since` is when each currently-submerged marble first touched
+## it (race time); `_water_delay` is that marble's own roll from this range.
+const WATER_ELIMINATE_MIN := 0.5
+const WATER_ELIMINATE_MAX := 1.0
+## Heavy drag while submerged, so a marble visibly slows and settles into the
+## water rather than skimming across its surface at whatever speed it landed
+## with — the same "sinks, doesn't vanish" reasoning `_check_for_falls`'s
+## comment gives the grace period itself.
+const WATER_DAMP := 6.0
+var _water_since: Dictionary = {}
+var _water_delay: Dictionary = {}
 
 var _marbles: Array[Marble] = []
 var _player: Marble
@@ -370,6 +389,8 @@ func _teardown_race() -> void:
 	_overtake_cooldown = 0.0
 	_countdown_called = 0
 	_clearance.clear()
+	_water_since.clear()
+	_water_delay.clear()
 	_cut_marker_offset = -1.0
 
 	if _hud != null and is_instance_valid(_hud):
@@ -873,19 +894,53 @@ func _on_marble_finished(marble: Marble) -> void:
 ## Out-of-bounds detection. A simple height threshold is enough for Phase 0;
 ## the spec explicitly defers stuck detection until a prototype proves it is a
 ## real problem.
+##
+## Water is a second, course-specific way to go out of bounds — `_course.
+## in_water` rather than another height check, because a course's water does
+## not sit at one fixed height once the course descends or turns under it
+## (see `CourseBuilder.in_water`). It gets a short grace period instead of an
+## instant elimination: a marble that has visibly landed in the water reads
+## as sinking, not vanishing the instant it touches the surface.
 func _check_for_falls() -> void:
 	for marble in _marbles:
 		if marble.state != Marble.State.RACING:
 			continue
+
 		if marble.global_position.y < _course.fall_threshold_y():
-			marble.state = Marble.State.ELIMINATED
-			marble.visible = false
-			marble.freeze = true
-			if marble.is_player:
-				_player_done = true
-			_announce_fall(marble)
+			_eliminate(marble)
+			continue
+
+		if _course.in_water(marble.global_position):
+			var since: float = _water_since.get(marble, -1.0)
+			if since < 0.0:
+				_water_since[marble] = _race_time
+				_water_delay[marble] = _rng.randf_range(WATER_ELIMINATE_MIN, WATER_ELIMINATE_MAX)
+				marble.linear_damp = WATER_DAMP
+			elif _race_time - since >= float(_water_delay[marble]):
+				_eliminate(marble)
+		elif _water_since.has(marble):
+			# Bounced back out before the grace period was up — not a fall.
+			_water_since.erase(marble)
+			_water_delay.erase(marble)
+			marble.linear_damp = _tuning.linear_damp
 
 	_check_round_progress()
+
+
+## Shared by both ways a marble leaves the course. `_water_since`/`_water_delay`
+## are cleaned up unconditionally — cheap, and it means a marble eliminated by
+## `fall_threshold_y` while mid-grace-period in the water doesn't leave a stale
+## entry behind for the next round's field to reuse.
+func _eliminate(marble: Marble) -> void:
+	marble.state = Marble.State.ELIMINATED
+	marble.visible = false
+	marble.freeze = true
+	marble.linear_damp = 0.0
+	_water_since.erase(marble)
+	_water_delay.erase(marble)
+	if marble.is_player:
+		_player_done = true
+	_announce_fall(marble)
 
 
 ## A fall used to be a silent deletion: `visible = false` and the marble was
@@ -1014,6 +1069,12 @@ func _return_to_home_after_delay() -> void:
 
 
 func _setup_environment() -> void:
+	# Shared across every course in COURSE_POOL, not just the Canyon — Jungle,
+	# Orbital and Volcano run under this same sky, and it is set once at
+	# `_ready`, before a course is even picked. So it stays here at roughly its
+	# original tone rather than being pushed toward a desert palette; the
+	# Canyon-specific reskin lives entirely in `course_builder.gd` instead
+	# (dressing, floor colour), which is the only file this task is scoped to.
 	var sky_material := ProceduralSkyMaterial.new()
 	sky_material.sky_top_color = Color(0.30, 0.47, 0.74)
 	sky_material.sky_horizon_color = Color(0.85, 0.74, 0.60)

@@ -26,11 +26,13 @@ extends Camera3D
 ##
 ## Press **C** in a running build to cycle modes mid-race.
 
-enum Mode { CHASE, OVERHEAD }
+enum Mode { CHASE, OVERHEAD, LOW }
 
-## What a fresh camera starts in. Set to `Mode.CHASE` to get the locked
-## behaviour back without deleting anything.
-const DEFAULT_MODE := Mode.OVERHEAD
+## What a fresh camera starts in. `Mode.LOW` is the approved gameplay camera —
+## it shows more of the course than `Mode.OVERHEAD` at a shallower, less
+## top-down angle. Set to `Mode.CHASE` to get the original locked behaviour
+## back without deleting anything.
+const DEFAULT_MODE := Mode.LOW
 
 const POSITION_SMOOTHING := 4.0
 const AIM_SMOOTHING := 6.0
@@ -122,6 +124,18 @@ const OVERHEAD_FOV := 22.0
 ## controls how far up the track you can see; pitch is not.
 const OVERHEAD_LEAD := 2.5
 
+# --- Mode.LOW (try) ------------------------------------------------------------
+
+## Same rig as `Mode.OVERHEAD` — course-tangent focus, looks back up-course, pulls
+## back with speed — just at a shallower pitch, on the theory that a lower angle
+## trades some field-at-a-glance for more course visible ahead, which is the
+## complaint about OVERHEAD. Untuned; this is a first try, not a locked value.
+const LOW_PITCH := deg_to_rad(32.0)
+const LOW_DISTANCE := 30.0
+const LOW_DISTANCE_FAST := 38.0
+const LOW_FOV := 26.0
+const LOW_LEAD := 4.0
+
 var target: Marble
 ## Optional, and only `Mode.OVERHEAD` uses it. Without it that mode falls back
 ## to steering by the marble's own velocity, which is what the first render did
@@ -163,14 +177,30 @@ func set_mode(value: Mode) -> void:
 			# clip off both sides.
 			keep_aspect = KEEP_WIDTH
 			fov = OVERHEAD_FOV
+		Mode.LOW:
+			keep_aspect = KEEP_WIDTH
+			fov = LOW_FOV
 
 
 func cycle_mode() -> void:
-	set_mode(Mode.CHASE if mode == Mode.OVERHEAD else Mode.OVERHEAD)
+	match mode:
+		Mode.CHASE:
+			set_mode(Mode.OVERHEAD)
+		Mode.OVERHEAD:
+			set_mode(Mode.LOW)
+		Mode.LOW:
+			set_mode(Mode.CHASE)
 
 
 func mode_name() -> String:
-	return "chase" if mode == Mode.CHASE else "overhead"
+	match mode:
+		Mode.CHASE:
+			return "chase"
+		Mode.OVERHEAD:
+			return "overhead"
+		Mode.LOW:
+			return "low"
+	return ""
 
 
 func _physics_process(delta: float) -> void:
@@ -200,16 +230,21 @@ func _physics_process(delta: float) -> void:
 			aim = marble_position + travel * LEAD_SECONDS
 			desired = marble_position - direction * CHASE_DISTANCE
 			desired.y = maxf(marble_position.y, aim.y) + CHASE_HEIGHT
-		Mode.OVERHEAD:
+		Mode.OVERHEAD, Mode.LOW:
+			var pitch := OVERHEAD_PITCH if mode == Mode.OVERHEAD else LOW_PITCH
+			var dist_calm := OVERHEAD_DISTANCE if mode == Mode.OVERHEAD else LOW_DISTANCE
+			var dist_fast := OVERHEAD_DISTANCE_FAST if mode == Mode.OVERHEAD else LOW_DISTANCE_FAST
+			var lead_metres := OVERHEAD_LEAD if mode == Mode.OVERHEAD else LOW_LEAD
+
 			# The focus rides the course centreline ahead of the marble, not the
 			# marble itself. Two things fall out of that: the track sits centred
 			# in a narrow portrait frame instead of wherever the player happens
 			# to have drifted, and yaw comes from the course's own tangent rather
 			# than from an instantaneous velocity that jitters every time the
 			# marble is nudged. Aiming at the marble did both badly.
-			var lead := _course_lead(marble_position)
+			var lead := _course_lead(marble_position, lead_metres)
 			if lead.is_empty():
-				aim = marble_position + direction * OVERHEAD_LEAD
+				aim = marble_position + direction * lead_metres
 			else:
 				aim = lead["position"]
 				direction = lead["tangent"]
@@ -223,11 +258,11 @@ func _physics_process(delta: float) -> void:
 			var pull := clampf(
 				inverse_lerp(SPEED_CALM, SPEED_FAST, _speed), 0.0, 1.0
 			)
-			var distance := lerpf(OVERHEAD_DISTANCE, OVERHEAD_DISTANCE_FAST, pull)
+			var distance := lerpf(dist_calm, dist_fast, pull)
 
 			desired = aim
-			desired += direction * (distance * cos(OVERHEAD_PITCH))
-			desired.y += distance * sin(OVERHEAD_PITCH)
+			desired += direction * (distance * cos(pitch))
+			desired.y += distance * sin(pitch)
 
 	if not _initialised:
 		_initialised = true
@@ -243,13 +278,13 @@ func _physics_process(delta: float) -> void:
 ## Where on the course centreline to look, and which way it runs there, given
 ## where the marble is. Empty when there is no course to sample, which leaves the
 ## caller on its velocity-based fallback.
-func _course_lead(from: Vector3) -> Dictionary:
+func _course_lead(from: Vector3, lead_metres: float) -> Dictionary:
 	if course == null or not is_instance_valid(course) or course.curve == null:
 		return {}
 
 	var length := course.curve.get_baked_length()
 	var offset := course.curve.get_closest_offset(from)
-	var ahead := clampf(offset + OVERHEAD_LEAD, 0.0, length)
+	var ahead := clampf(offset + lead_metres, 0.0, length)
 
 	# Sampled over a fixed baseline rather than between adjacent points, for the
 	# same reason course_builder.gd measures banking that way: a short baseline
