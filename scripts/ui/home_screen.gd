@@ -10,14 +10,26 @@ const START_BUTTON_TEXTURE := preload("res://assets/ui/buttons/start_button.png"
 const STORE_BUTTON_TEXTURE := preload("res://assets/ui/buttons/store_button.png")
 const ICON_SCRIPT := preload("res://scripts/ui/home_icon.gd")
 
+# The play area is laid out from the mock-up (docs/ui-reference/home.png,
+# 1882x3344 — the same 9:16 as this viewport), so these are that image's own
+# measurements expressed as fractions of the screen.
+const MARBLE_RADIUS_FRACTION := 178.0 / 1882.0
+const MARBLE_CENTRE_Y_FRACTION := 2113.0 / 3344.0
+const MARBLE_REST_X_FRACTION := 896.0 / 1882.0
+## How far either side of its resting spot the marble rolls. The mock-up is a
+## still; the marble on Home has always moved, and this keeps it doing so
+## without ever leaving the platform.
+const MARBLE_TRAVEL_FRACTION := 0.26
+const MARBLE_EDGE_MARGIN := 14.0
+
 const CREAM := Color(1.0, 0.965, 0.86)
 const INK := Color(0.075, 0.032, 0.018)
 const BLUE := Color(0.055, 0.38, 0.78)
 const TOAST_SECONDS := 1.6
 
 var _backdrop: HomeBackdrop
-var _marble_view: SubViewportContainer
-var _marble_root: HomeMarble3D
+var _play_surface: HomePlaySurface
+var _marble: HomeMarblePreview
 var _toast: Label
 var _toast_left := 0.0
 var _coins_label: Label
@@ -29,7 +41,7 @@ func _ready() -> void:
 	_build_backdrop()
 	_build_top_bar()
 	_build_logo()
-	_build_marble_view()
+	_build_play_area()
 	_build_toast()
 	_build_nav()
 
@@ -110,49 +122,37 @@ func _build_logo() -> void:
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(logo)
 
-func _build_marble_view() -> void:
-	_marble_view = SubViewportContainer.new()
-	_marble_view.anchor_left = 0.035
-	_marble_view.anchor_right = 0.965
-	_marble_view.anchor_top = 0.535
-	_marble_view.anchor_bottom = 0.775
-	_marble_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_marble_view.stretch = true
-	add_child(_marble_view)
+func _build_play_area() -> void:
+	# The mock-up's play area, in the mock-up's own proportions: an illustrated
+	# stone platform across the lower middle of the screen with the player's
+	# marble resting on it. The platform artwork and every number below come
+	# from `docs/ui-reference/home.png`, which shares this viewport's 9:16
+	# aspect, so the composition transfers directly. The marble itself is not
+	# artwork — it is the game's own `Marble`, rendered in 3D by
+	# `HomeMarblePreview`.
+	_play_surface = HomePlaySurface.new()
+	add_child(_play_surface)
 
-	var viewport := SubViewport.new()
-	viewport.transparent_bg = true
-	viewport.handle_input_locally = false
-	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	viewport.msaa_3d = Viewport.MSAA_2X
-	_marble_view.add_child(viewport)
+	_marble = HomeMarblePreview.create(PlayerProfile.equipped_colour())
+	add_child(_marble)
+	_layout_marble()
+	resized.connect(_layout_marble)
 
-	var world := Node3D.new()
-	viewport.add_child(world)
-	var environment := WorldEnvironment.new()
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0, 0, 0, 0)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(1.0, 0.78, 0.58)
-	env.ambient_light_energy = 0.72
-	environment.environment = env
-	world.add_child(environment)
-
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-32.0, -25.0, 0.0)
-	light.light_color = Color(1.0, 0.88, 0.72)
-	light.light_energy = 1.35
-	world.add_child(light)
-
-	var camera := Camera3D.new()
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 5.4
-	camera.position = Vector3(0.0, 1.55, 10.0)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.80, 0.0), Vector3.UP)
-	world.add_child(camera)
-	_marble_root = HomeMarble3D.create(PlayerProfile.equipped_colour())
-	world.add_child(_marble_root)
+## Puts the marble on the platform at whatever size the portrait viewport ends
+## up: its resting spot, the height it sits at and its size are all fractions of
+## the screen, taken from the mock-up, and its roll stays inside the platform
+## and well clear of the nav row.
+func _layout_marble() -> void:
+	if _marble == null:
+		return
+	var radius := size.x * MARBLE_RADIUS_FRACTION
+	var rest := size.x * MARBLE_REST_X_FRACTION
+	_marble.set_display(Vector2(rest, size.y * MARBLE_CENTRE_Y_FRACTION), radius)
+	var half_travel := size.x * MARBLE_TRAVEL_FRACTION
+	_marble.set_travel(
+		maxf(rest - half_travel, radius + MARBLE_EDGE_MARGIN),
+		minf(rest + half_travel, size.x - radius - MARBLE_EDGE_MARGIN)
+	)
 
 func _build_toast() -> void:
 	_toast = Label.new()
