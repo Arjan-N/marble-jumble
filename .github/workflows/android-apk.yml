@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.7.2
+      env:
+        HOME: /root
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,6 +25,13 @@ jobs:
               -keyalg RSA -keysize 2048 -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
           fi
+
+      - name: Show Android export environment
+        run: |
+          echo "HOME=$HOME"
+          ls -la "$HOME/.local/share/godot/export_templates" || true
+          ls -la "$HOME/.config/godot" || true
+          grep -i -E "android_sdk_path|java_sdk_path" "$HOME/.config/godot/editor_settings-4.tres" || true
 
       - name: Import project
         run: godot --headless --import
