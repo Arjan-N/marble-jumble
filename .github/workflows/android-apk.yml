@@ -8,8 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.7.2
-      env:
-        HOME: /root
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,12 +24,19 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Show Android export environment
+      # GitHub runs container steps with HOME=/github/home, but the godot-ci
+      # image installs the export templates and the editor settings holding the
+      # Android/Java SDK paths under /root. Copy them into the runtime HOME.
+      - name: Stage Godot editor data into HOME
         run: |
           echo "HOME=$HOME"
-          ls -la "$HOME/.local/share/godot/export_templates" || true
-          ls -la "$HOME/.config/godot" || true
-          grep -i -E "android_sdk_path|java_sdk_path" "$HOME/.config/godot/editor_settings-4.tres" || true
+          ls -la /root/.local/share/godot/export_templates || true
+          ls -la /root/.config/godot || true
+          grep -i -E "android_sdk_path|java_sdk_path" /root/.config/godot/editor_settings-4.tres || true
+          mkdir -p "$HOME/.local/share/godot" "$HOME/.config"
+          cp -r /root/.local/share/godot/. "$HOME/.local/share/godot/"
+          cp -r /root/.config/godot "$HOME/.config/"
+          ls -la "$HOME/.local/share/godot/export_templates"
 
       - name: Import project
         run: godot --headless --import
