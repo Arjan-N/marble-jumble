@@ -87,6 +87,17 @@ static func _maps_for(finish: String, skin: Dictionary) -> Dictionary:
 			maps["emission"] = _texture(magma[1])
 		"chrome":
 			maps["albedo"] = _texture(_paint_chrome(skin))
+		"stormcell":
+			var storm := _paint_stormcell(skin)
+			maps["albedo"] = _texture(storm[0])
+			maps["emission"] = _texture(storm[1])
+		"quicksilver":
+			# Same generator as `chrome`, under its own finish name and cache
+			# entry — the cache below is keyed by finish string alone, so two
+			# skins sharing "chrome" would silently bake one skin's `ribbon`
+			# over the other's. `marble.gd` retints this one's ALBEDO every
+			# frame by speed; the static bands painted here are its rest state.
+			maps["albedo"] = _texture(_paint_chrome(skin))
 		_:
 			push_warning("Unknown marble skin finish: %s" % finish)
 			return {}
@@ -286,6 +297,50 @@ static func _paint_magma(skin: Dictionary) -> Array:
 			colour = colour.lerp(molten, vein)
 			albedo.set_pixel(x, y, colour)
 			emission.set_pixel(x, y, (molten * vein * 0.9).clamp())
+	return [albedo, emission]
+
+
+## A storm-grey ball veined with lightning rather than lava — structurally the
+## same generator as `_paint_magma` (a noise field's zero-crossings are the
+## veins), recoloured cold and paired with `marble.gd`'s "impact_flash"
+## reactive behaviour: this skin's veins hold at a dim resting glow between
+## hits and spike bright on one, instead of magma's constant simmer.
+##
+## Returns [albedo, emission].
+static func _paint_stormcell(skin: Dictionary) -> Array:
+	var albedo := _blank()
+	var emission := _blank()
+	var cloud := _backdrop(skin, Color(0.10, 0.12, 0.18))
+	var bolt: Array = skin.get("ribbon", [Color(0.55, 0.85, 1.0), Color(1.0, 1.0, 0.95)])
+
+	var cracks := _noise(3583, 1.3, 3)
+	var mottle := _noise(8117, 2.2, 2)
+
+	for y in MAP_HEIGHT:
+		var v := (float(y) + 0.5) / MAP_HEIGHT
+		for x in MAP_WIDTH:
+			var u := (float(x) + 0.5) / MAP_WIDTH
+			var dir := _direction(u, v)
+
+			var ridge := absf(cracks.get_noise_3dv(dir))
+			# Thinner than magma's — a hairline crack of lightning reads better
+			# than a lava-wide one, and it is meant to sit dim until the flash.
+			var vein := 1.0 - smoothstep(0.008, 0.05, ridge)
+
+			var grain := mottle.get_noise_3dv(dir) * 0.05
+			var colour := Color(
+				clampf(cloud.r + grain, 0.0, 1.0),
+				clampf(cloud.g + grain, 0.0, 1.0),
+				clampf(cloud.b + grain, 0.0, 1.0)
+			)
+
+			var charge: Color = (bolt[0] as Color).lerp(bolt[1], smoothstep(0.5, 1.0, vein))
+			colour = colour.lerp(charge, vein * 0.7)
+			albedo.set_pixel(x, y, colour)
+			# Dimmer baseline than magma's own 0.9 — `marble.gd` holds this
+			# skin's emission energy low at rest and only lets it read this
+			# bright for the moment the flash decays through it.
+			emission.set_pixel(x, y, (charge * vein * 0.6).clamp())
 	return [albedo, emission]
 
 

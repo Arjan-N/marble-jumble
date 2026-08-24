@@ -61,6 +61,28 @@ const PULSE_SPEED := 2.2
 const PULSE_MIN := 0.12
 const PULSE_MAX := 0.32
 
+## A skin's `reactive` key (`PlayerProfile.SKINS`), resolved once in
+## `_build_material` rather than string-matched every frame in `_process`.
+enum Reactive { NONE, IMPACT_FLASH, SPEED_TINT }
+var _reactive: Reactive = Reactive.NONE
+
+## Stormcell: the veins hold at `PULSE_MIN` and spike toward this on a hit,
+## squared-decaying back down over `FLASH_DURATION` — quick like the impact
+## itself, not a slow fade that would blur two hits together.
+const FLASH_DURATION := 0.35
+## Well under Godot's un-pulsed default of 1.0 — that default is exactly what
+## washed the baked-emission skins to solid white before `PULSE_MIN` (see
+## above) held them down, so the flash must not reach it either.
+const FLASH_PEAK := 0.55
+var _flash_time := 0.0
+
+## Quicksilver: ALBEDO lerps between these by current speed, so the marble's
+## own colour is a live readout rather than decoration. Drawn from the skin's
+## `ribbon` in `_build_material` — cool at rest, hot at `SPEED_TINT_MAX`.
+const SPEED_TINT_MAX := 14.0
+var _tint_cool := Color.WHITE
+var _tint_hot := Color.WHITE
+
 
 ## `skin` is the player's equipped entry from `PlayerProfile.SKINS`, and only
 ## ever decides how the marble looks (`marble_skin.gd`). Opponents pass nothing
@@ -158,23 +180,77 @@ func _build_material(colour: Color) -> StandardMaterial3D:
 		# It is not pulsed either (see `_process`): brightening an already-bright
 		# baked-in map pushes its hottest pixels toward white and buries the
 		# skin's own colours under the identification cue.
-		_pulses = not MarbleSkin.has_emission(skin)
+		_reactive = _reactive_for(skin)
+		_pulses = _reactive == Reactive.NONE and not MarbleSkin.has_emission(skin)
 		if _pulses:
 			material.emission_enabled = true
 			material.emission = colour
+		elif MarbleSkin.has_emission(skin):
+			# `MarbleSkin.apply` already turned emission on (white × the baked map,
+			# ADD) at Godot's default 1.0 energy multiplier. The old pulse used to
+			# be the only thing holding that down — it breathed between PULSE_MIN
+			# and PULSE_MAX — and turning the pulse off above left these skins at
+			# the un-pulsed default instead, which is 3-8x hotter than the pulse
+			# ever reached. Under this scene's lighting that is what was actually
+			# washing the galaxy and magma skins to solid white, not the rim.
+			# Holding it at a fixed point inside the old pulse range keeps the
+			# glow readable without the swing a static marble does not need.
+			# `Reactive.IMPACT_FLASH` (`_process`) then breathes upward from here
+			# on a hit instead of never moving at all.
+			material.emission_energy_multiplier = PULSE_MIN
+
+		match _reactive:
+			Reactive.SPEED_TINT:
+				var ribbon: Array = skin.get("ribbon", [colour, colour])
+				_tint_cool = ribbon[0] if ribbon.size() > 0 else colour
+				_tint_hot = ribbon[ribbon.size() - 1] if ribbon.size() > 0 else colour
+			Reactive.IMPACT_FLASH:
+				collided.connect(_on_impact_flash)
 
 	return material
 
 
+## `skin["reactive"]`, resolved once here rather than string-matched every
+## `_process` frame.
+func _reactive_for(skin: Dictionary) -> Reactive:
+	match String(skin.get("reactive", "")):
+		"impact_flash":
+			return Reactive.IMPACT_FLASH
+		"speed_tint":
+			return Reactive.SPEED_TINT
+		_:
+			return Reactive.NONE
+
+
+## Stormcell: a hit charges the veins bright; they discharge back down over
+## `FLASH_DURATION` rather than snapping off, so the flash reads as one event
+## instead of a strobe if two hits land close together (the second simply
+## restarts the timer, per the `maxf` in `_process`, rather than stacking).
+func _on_impact_flash(_speed: float) -> void:
+	_flash_time = FLASH_DURATION
+
+
 func _process(delta: float) -> void:
-	if not is_player or not _pulses or _highlight_material == null:
+	if not is_player or _highlight_material == null:
 		return
 
-	# A slow breathing glow rather than a fixed one — motion is what catches a
-	# child's eye in a field of identical, constantly-moving spheres.
-	_pulse_time += delta
-	var pulse := (sin(_pulse_time * PULSE_SPEED) * 0.5) + 0.5
-	_highlight_material.emission_energy_multiplier = lerpf(PULSE_MIN, PULSE_MAX, pulse)
+	if _pulses:
+		# A slow breathing glow rather than a fixed one — motion is what catches
+		# a child's eye in a field of identical, constantly-moving spheres.
+		_pulse_time += delta
+		var pulse := (sin(_pulse_time * PULSE_SPEED) * 0.5) + 0.5
+		_highlight_material.emission_energy_multiplier = lerpf(PULSE_MIN, PULSE_MAX, pulse)
+
+	match _reactive:
+		Reactive.IMPACT_FLASH:
+			_flash_time = maxf(_flash_time - delta, 0.0)
+			# Squared rather than linear: the flash reads as a sharp spike right
+			# on the hit and a fast fade after, not a triangle that lingers.
+			var flare := pow(_flash_time / FLASH_DURATION, 2.0)
+			_highlight_material.emission_energy_multiplier = lerpf(PULSE_MIN, FLASH_PEAK, flare)
+		Reactive.SPEED_TINT:
+			var speed_t := clampf(linear_velocity.length() / SPEED_TINT_MAX, 0.0, 1.0)
+			_highlight_material.albedo_color = _tint_cool.lerp(_tint_hot, speed_t)
 
 
 func _physics_process(delta: float) -> void:

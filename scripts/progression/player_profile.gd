@@ -12,11 +12,15 @@ extends Node
 ##
 ## Keys an elaborate skin may carry, all optional:
 ##   finish    Which generator paints it: cats_eye, sunburst, galaxy, magma,
-##             chrome.
+##             chrome, stormcell, quicksilver.
 ##   colour    Still required on every skin — the base/background tone, and the
 ##             one colour the HUD swatch and the marble's trail are drawn in,
 ##             neither of which can show a pattern.
 ##   ribbon    The generator's accent colours; what they mean is per-finish.
+##   reactive  Optional; `marble.gd` behaviour tied to the race rather than the
+##             static pattern above: "impact_flash" spikes emission energy on
+##             the player's own collisions, "speed_tint" lerps ALBEDO by the
+##             marble's current speed. Absent means the skin just sits there.
 ##   metallic  Defaults to the plain marble's 0.1.
 ##   roughness Defaults to the plain marble's 0.25.
 
@@ -86,6 +90,37 @@ const SKINS := [
 		"metallic": 1.0,
 		"roughness": 0.08,
 		"price": 400,
+	},
+	{
+		"id": 10,
+		"name": "Stormcell",
+		"colour": Color(0.55, 0.68, 0.88),
+		"backdrop": Color(0.10, 0.12, 0.18),
+		"finish": "stormcell",
+		# Vein colour, dim -> hot. `reactive: impact_flash` (marble.gd) is what
+		# actually makes this skin different from Magma: the veins hold near
+		# their dim end at rest and spike toward it on every hit the player's
+		# marble takes, decaying back down after.
+		"ribbon": [Color(0.55, 0.85, 1.0), Color(1.0, 1.0, 0.95)],
+		"reactive": "impact_flash",
+		"metallic": 0.05,
+		"roughness": 0.55,
+		"price": 300,
+	},
+	{
+		"id": 11,
+		"name": "Quicksilver",
+		"colour": Color(0.60, 0.68, 0.80),
+		"finish": "quicksilver",
+		# Reused as both the static chrome banding (marble_skin.gd's
+		# `_paint_chrome`) and the two ends `reactive: speed_tint` (marble.gd)
+		# lerps ALBEDO between live, at rest and at the marble's own top speed —
+		# the one skin whose colour is a gameplay readout, not just decoration.
+		"ribbon": [Color(0.55, 0.70, 0.95), Color(1.0, 0.55, 0.15)],
+		"reactive": "speed_tint",
+		"metallic": 1.0,
+		"roughness": 0.08,
+		"price": 350,
 	},
 ]
 
