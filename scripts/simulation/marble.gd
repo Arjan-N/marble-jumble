@@ -28,6 +28,10 @@ var state: State = State.WAITING
 ## The colour this marble was built with, kept so the HUD can draw a swatch that
 ## matches what is on the track without reaching into the mesh material.
 var colour: Color = Color.WHITE
+## The cosmetic finish painted over that colour, or `{}` for a plain one. Set
+## before `_build` by `create`; nothing outside `_build_material` reads it, and
+## nothing in the simulation does.
+var skin: Dictionary = {}
 
 var _tuning: MarbleTuning
 ## Previous frame's velocity, so an impact can be recognised as a sudden change
@@ -56,10 +60,20 @@ const PULSE_MIN := 0.18
 const PULSE_MAX := 0.5
 
 
+## `skin` is the player's equipped entry from `PlayerProfile.SKINS`, and only
+## ever decides how the marble looks (`marble_skin.gd`). Opponents pass nothing
+## and get the flat colour they always had — they are physically identical to
+## the player either way (PROJECT.md section 7).
 static func create(
-	id: int, tuning: MarbleTuning, colour: Color, player: bool, marble_name := ""
+	id: int,
+	tuning: MarbleTuning,
+	colour: Color,
+	player: bool,
+	marble_name := "",
+	skin: Dictionary = {}
 ) -> Marble:
 	var marble := Marble.new()
+	marble.skin = skin
 	marble.name = "Marble%02d" % id
 	marble.marble_id = id
 	marble.marble_name = marble_name if marble_name != "" else "Marble %d" % id
@@ -121,6 +135,9 @@ func _build_material(colour: Color) -> StandardMaterial3D:
 	material.albedo_color = colour
 	material.metallic = 0.1
 	material.roughness = 0.25
+	# A patterned skin replaces the albedo above with its own map and brings its
+	# own metallic/roughness. A plain one leaves all three exactly as set here.
+	MarbleSkin.apply(material, skin)
 
 	if is_player:
 		# The persistent identification the spec calls for: prominent enough to
@@ -129,8 +146,13 @@ func _build_material(colour: Color) -> StandardMaterial3D:
 		material.rim_enabled = true
 		material.rim = 0.9
 		material.rim_tint = 0.35
-		material.emission_enabled = true
-		material.emission = colour
+		# A skin that paints its own emission — the galaxy's stars, the magma's
+		# veins — keeps it; overwriting it with a flat colour would throw the
+		# skin's whole look away for a cue the rim and the trail already carry.
+		# The pulse below then breathes through those veins instead.
+		if not MarbleSkin.has_emission(skin):
+			material.emission_enabled = true
+			material.emission = colour
 
 	return material
 

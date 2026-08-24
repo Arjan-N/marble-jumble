@@ -25,8 +25,9 @@ const VIEW_RADII := 2.2
 
 ## Average px per second across the design-space (720-wide) platform; the eased
 ## turnarounds below make the mid-platform speed about half again this. Rolling
-## the ball along the stone is the only motion that reads — the skins are flat
-## colours, so spinning a sphere on the spot changes nothing on screen.
+## the ball along the stone is what the travel is for; it also turns the ball,
+## which is the only way a patterned skin (marble_skin.gd) shows more than the
+## one face it happens to be resting on.
 const SPEED := 110.0
 
 ## Warm canyon light, matched to the backdrop rather than to any one course's
@@ -68,13 +69,13 @@ var _right := 0.0
 var _distance := 0.0
 
 
-static func create(colour: Color) -> HomeMarblePreview:
+static func create(colour: Color, skin: Dictionary = {}) -> HomeMarblePreview:
 	var preview := HomeMarblePreview.new()
-	preview._build(colour)
+	preview._build(colour, skin)
 	return preview
 
 
-func _build(colour: Color) -> void:
+func _build(colour: Color, skin: Dictionary) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stretch = true
 
@@ -103,7 +104,7 @@ func _build(colour: Color) -> void:
 	_camera.look_at_from_position(_camera.position, Vector3.ZERO, Vector3.UP)
 	world.add_child(_camera)
 
-	_marble = _build_marble(colour)
+	_marble = _build_marble(colour, skin)
 	world.add_child(_marble)
 	_outline = _build_outline()
 	world.add_child(_outline)
@@ -157,10 +158,10 @@ func _build_bounce_light() -> DirectionalLight3D:
 ## A real player marble with its gameplay stripped off. Everything that decides
 ## how it looks — mesh, material, rim, emission pulse, skin colour — is left
 ## exactly as `marble.gd` built it.
-func _build_marble(colour: Color) -> Marble:
+func _build_marble(colour: Color, skin: Dictionary) -> Marble:
 	var tuning := MarbleTuning.new()
 	_radius_world = tuning.radius
-	var marble := Marble.create(0, tuning, colour, true, "Home preview")
+	var marble := Marble.create(0, tuning, colour, true, "Home preview", skin)
 
 	marble.freeze = true
 	marble.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC

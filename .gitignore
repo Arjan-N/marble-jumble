@@ -13,3 +13,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Generated stills (tools/shots.ps1, tools/skin_sheet.gd)
+/shots/

@@ -133,7 +133,9 @@ func _build_play_area() -> void:
 	_play_surface = HomePlaySurface.new()
 	add_child(_play_surface)
 
-	_marble = HomeMarblePreview.create(PlayerProfile.equipped_colour())
+	_marble = HomeMarblePreview.create(
+		PlayerProfile.equipped_colour(), PlayerProfile.equipped_skin_data()
+	)
 	add_child(_marble)
 	_layout_marble()
 	resized.connect(_layout_marble)

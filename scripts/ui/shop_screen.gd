@@ -1,13 +1,18 @@
 class_name ShopScreen
 extends Control
 
-## Placeholder shop: spend coins (scripts/progression/player_profile.gd) on a
-## few flat-colour marble skins. Deliberately undesigned — the home screen's
-## own look is still being worked out, so this reuses plain engine controls
+## Placeholder shop: spend coins (scripts/progression/player_profile.gd) on
+## marble skins. Deliberately undesigned — the home screen's own look is still
+## being worked out, so this reuses plain engine controls
 ## rather than home_screen.gd's custom-drawn comic-book style. Swap the visuals
 ## once that direction is settled.
 
 const HOME_SCENE := "res://scenes/home.tscn"
+
+## Side of a row's marble swatch, in pixels. Drawn at its final size — the
+## swatch is painted per pixel (marble_skin.gd) rather than scaled, so a
+## mismatch here would sample the sphere at the wrong resolution.
+const SWATCH_PX := 48
 
 var _coins_label: Label
 var _rows: Dictionary = {} ## skin id -> row Control, so a purchase can refresh just that row.
@@ -73,9 +78,11 @@ func _build_skin_row(skin: Dictionary) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 
-	var swatch := ColorRect.new()
-	swatch.color = skin["colour"]
-	swatch.custom_minimum_size = Vector2(40, 40)
+	# A lit ball rather than a colour chip: half the catalogue is a pattern now
+	# (marble_skin.gd), and a flat square shows none of it.
+	var swatch := TextureRect.new()
+	swatch.texture = MarbleSkin.swatch_texture(skin, SWATCH_PX)
+	swatch.custom_minimum_size = Vector2(SWATCH_PX, SWATCH_PX)
 	row.add_child(swatch)
 
 	var name_label := Label.new()

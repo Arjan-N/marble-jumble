@@ -4,9 +4,21 @@ extends Node
 ## coins, spent on cosmetic marble items). Coins and skin ownership are saved
 ## together since nothing else currently needs its own save file.
 ##
-## Skins are flat colours only — there is no art pipeline yet (see
-## home_screen.gd), and the shop is a placeholder until the home screen's own
-## visual design is settled.
+## The first five skins are flat colours. The rest carry a `finish`, which
+## `marble_skin.gd` paints into a texture at runtime — still no art pipeline
+## (see home_screen.gd), just procedural maps, the same way every other visual
+## in the project is made. A skin without a `finish` key is a plain colour and
+## nothing in `marble_skin.gd` touches it.
+##
+## Keys an elaborate skin may carry, all optional:
+##   finish    Which generator paints it: cats_eye, sunburst, galaxy, magma,
+##             chrome.
+##   colour    Still required on every skin — the base/background tone, and the
+##             one colour the HUD swatch and the marble's trail are drawn in,
+##             neither of which can show a pattern.
+##   ribbon    The generator's accent colours; what they mean is per-finish.
+##   metallic  Defaults to the plain marble's 0.1.
+##   roughness Defaults to the plain marble's 0.25.
 
 signal coins_changed(balance: int)
 
@@ -20,6 +32,61 @@ const SKINS := [
 	{"id": 2, "name": "Ember", "colour": Color(0.92, 0.32, 0.18), "price": 50},
 	{"id": 3, "name": "Toxic", "colour": Color(0.55, 0.92, 0.20), "price": 75},
 	{"id": 4, "name": "Royal", "colour": Color(0.58, 0.30, 0.92), "price": 100},
+	{
+		"id": 5,
+		"name": "Cat's Eye",
+		"colour": Color(0.94, 0.94, 0.90), ## Milky glass; the vane lives in `ribbon`.
+		"finish": "cats_eye",
+		"ribbon": [Color(0.91, 0.24, 0.28), Color(0.99, 0.83, 0.24), Color(0.20, 0.48, 0.92)],
+		# Glass, so smoother and less metallic than the painted marbles above.
+		"metallic": 0.05,
+		"roughness": 0.12,
+		"price": 150,
+	},
+	{
+		"id": 6,
+		"name": "Sunburst",
+		"colour": Color(0.98, 0.55, 0.12),
+		"finish": "sunburst",
+		"ribbon": [Color(0.98, 0.45, 0.08), Color(1.0, 0.93, 0.78)],
+		"cap": Color(0.99, 0.78, 0.20),
+		"price": 150,
+	},
+	{
+		"id": 7,
+		"name": "Galaxy",
+		# Bright enough for the HUD swatch and the trail, which get this colour
+		# flat; the ball itself is painted over the near-black `backdrop`.
+		"colour": Color(0.55, 0.38, 0.95),
+		"backdrop": Color(0.055, 0.04, 0.13),
+		"finish": "galaxy",
+		"ribbon": [Color(0.52, 0.18, 0.82), Color(0.18, 0.58, 0.92)],
+		"metallic": 0.0,
+		"roughness": 0.45,
+		"price": 250,
+	},
+	{
+		"id": 8,
+		"name": "Magma",
+		"colour": Color(0.96, 0.38, 0.10),
+		"backdrop": Color(0.11, 0.09, 0.10),
+		"finish": "magma",
+		"ribbon": [Color(0.95, 0.30, 0.05), Color(1.0, 0.87, 0.38)],
+		"metallic": 0.0,
+		# Cooled basalt. The one skin that is not meant to shine.
+		"roughness": 0.85,
+		"price": 250,
+	},
+	{
+		"id": 9,
+		"name": "Chrome",
+		"colour": Color(0.86, 0.89, 0.94),
+		"finish": "chrome",
+		"ribbon": [Color(0.97, 0.98, 1.0), Color(0.20, 0.23, 0.30)],
+		"metallic": 1.0,
+		"roughness": 0.08,
+		"price": 400,
+	},
 ]
 
 var coins: int = 0
@@ -73,6 +140,13 @@ func skin_by_id(id: int) -> Dictionary:
 
 func equipped_colour() -> Color:
 	return skin_by_id(equipped_skin).get("colour", Color.WHITE)
+
+
+## The whole equipped entry, for the things that can show a pattern — the
+## marble itself and the Home preview. Everything that can only show one flat
+## colour (the HUD swatch, the trail) keeps using `equipped_colour`.
+func equipped_skin_data() -> Dictionary:
+	return skin_by_id(equipped_skin)
 
 
 func _save() -> void:

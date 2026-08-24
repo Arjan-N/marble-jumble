@@ -18,6 +18,9 @@ const PLAYER_MARBLE_INDEX_UNSET := -1
 ## player_profile.gd) rather than a fixed const, so a shop purchase actually
 ## shows up on the track.
 var PLAYER_COLOUR := Color(0.25, 0.78, 1.0)
+## The whole equipped entry, read at the same moment and for the same reason.
+## Opponents have none — a `{}` here is a plain-coloured marble.
+var _player_skin: Dictionary = {}
 
 ## Coins awarded when a tournament ends, keyed by how far the player got.
 ## Placeholder amounts (PROJECT.md section 17 item 10 — reward values are TBD).
@@ -197,6 +200,7 @@ const RETURN_TO_HOME_DELAY := 3.2
 
 func _ready() -> void:
 	PLAYER_COLOUR = PlayerProfile.equipped_colour()
+	_player_skin = PlayerProfile.equipped_skin_data()
 	_tuning = MarbleTuning.new()
 	_setup_environment()
 	_start_race()
@@ -374,7 +378,9 @@ func _spawn_field() -> void:
 
 	for i in count:
 		var entry: Dictionary = _roster[i]
-		var marble := Marble.create(i, _tuning, entry["colour"], entry["is_player"], entry["name"])
+		var marble := Marble.create(
+			i, _tuning, entry["colour"], entry["is_player"], entry["name"], entry.get("skin", {})
+		)
 
 		add_child(marble)
 		marble.reset_to(spawns[i])
@@ -425,7 +431,10 @@ func _generate_initial_roster() -> Array:
 		if not is_player:
 			marble_name = names[next_name]
 			next_name += 1
-		roster.append({"colour": colour, "name": marble_name, "is_player": is_player})
+		var entry := {"colour": colour, "name": marble_name, "is_player": is_player}
+		if is_player:
+			entry["skin"] = _player_skin
+		roster.append(entry)
 
 	return roster
 
@@ -951,7 +960,10 @@ func _resolve_round() -> void:
 	var next_roster: Array = []
 	for marble in survivors:
 		next_roster.append({
-			"colour": marble.colour, "name": marble.marble_name, "is_player": marble.is_player
+			"colour": marble.colour,
+			"name": marble.marble_name,
+			"is_player": marble.is_player,
+			"skin": marble.skin,
 		})
 
 	_round_number += 1
