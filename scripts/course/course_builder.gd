@@ -116,6 +116,31 @@ const BUMPER_AT := 0.885
 const JUMP_RAMP_LENGTH := 3.0
 const JUMP_RAMP_TILT := deg_to_rad(16.0)
 const JUMP_RAMP_THICKNESS := 0.4
+## The ramp turns arrival speed into an arc, but it cannot invent speed a
+## marble does not have, and too much of the field was arriving under the
+## ramp's own break-even and dropping straight into the river. A speed floor on
+## the run-in is the fix every other course with a gap ended up at — see
+## `BoostPad`'s header for why a floor rather than a multiplier, and why it
+## cannot reorder a field that is already running well.
+##
+## There is a cliff here, not a gradient, and this sits just past it. Measured
+## over eight full 12-marble rounds each, marbles crossing the gap:
+##
+##   no boost  16/96      13.0  75/96      14.0  90/96
+##   12.0      32/96      13.5  89/96      18.0  92/96
+##
+## Which is what the ballistics predict: a 16-degree launch needs about 9.7 m/s
+## to carry the 5.1m gap in vacuum, and the ramp itself costs a few m/s to
+## climb, so anything under ~13 at the pad is short no matter how well it is
+## aimed. Below the cliff the boost is wasted; well above it nothing further is
+## bought — 18.0 lands within noise of 14.0 while making the jump trivial and
+## the top-up large enough to feel. 14.0 is the smallest number that clears.
+##
+## Six of 96 still miss, which is what a jump is for.
+const JUMP_BOOST_SPEED := 14.0
+## Far enough back that the top-up is spent rolling onto the ramp rather than
+## applied mid-launch, where it would read as a kick.
+const JUMP_BOOST_LEAD := 2.0
 const ROUGH_UNTIL := 0.55 ## Rough canyon stone before here, smoother build after.
 
 const ROUGH_FRICTION := 0.55
@@ -193,7 +218,7 @@ const MESA_RIM_COLOUR := Color(0.80, 0.50, 0.30)
 ## No longer visual-only: it used to be safe to skip collision because a
 ## marble that reached it was already eliminated by the global
 ## `fall_threshold_y` long before falling this far — the water sat only
-## `RIVER_DEPTH` below the local floor, but the course descends so much
+## `RIVER_BED_DEPTH` below the local floor, but the course descends so much
 ## between here and the finish (which has to stay above the one fixed
 ## threshold that applies everywhere) that a marble fell the better part of
 ## 30m through empty space before that threshold ever caught it. Real
@@ -203,11 +228,27 @@ const MESA_RIM_COLOUR := Color(0.80, 0.50, 0.30)
 ## Raised from 1.8 to 1.0 alongside that — the point wasn't ever really "how
 ## deep is the river", it was "how far below the floor a marble had to fall
 ## before anything happened", and that distance reads better close.
-const RIVER_DEPTH := 1.0
-## Fraction of the gap's own length each bank consumes sloping down to the
-## water, leaving the middle as open water. Symmetric, so the two banks always
-## leave *some* water between them regardless of how long the gap ends up.
-## Raised from 0.38 alongside the shallower depth so the slope actually faces
+##
+## This is the *bed*, not the water line. They used to be the same number, and
+## that made "raise the water" a change with no visible effect: the banks
+## sloped from the floor down to exactly this depth and the water surface sat
+## at exactly this depth too, so the waterline always landed on the bank's
+## bottom edge and the strip of visible water was the same width no matter
+## what the depth was. Bed and level are separate now — see `RIVER_LEVEL`.
+const RIVER_BED_DEPTH := 1.0
+## Where the water surface sits, below the floor. Smaller is higher water.
+##
+## Because the banks slope, this is what actually decides how wide the river
+## reads from above: the waterline is wherever the bank has descended this
+## far, so raising the level walks the edges up the slopes and floods more of
+## the gap. At the old bed-locked value the river was a ribbon covering about
+## a sixth of the gap; at 0.35 it covers most of it and the banks read as
+## banks rather than as the whole crossing.
+const RIVER_LEVEL := 0.35
+## Fraction of the gap's own length each bank consumes sloping from the floor
+## down to `RIVER_BED_DEPTH`. Symmetric, so the two banks always leave *some*
+## bed between them regardless of how long the gap ends up.
+## Raised from 0.38 alongside the shallower bed so the slope actually faces
 ## the sun rather than its own shadow.
 const RIVER_BANK_FRACTION := 0.42
 ## Sunlit wet sand, not shadowed mud — the first attempt at this colour was
@@ -216,10 +257,18 @@ const RIVER_BANK_FRACTION := 0.42
 const RIVER_BANK_COLOUR := Color(0.58, 0.44, 0.30)
 const WATER_SHADER: Shader = preload("res://scripts/course/water.gdshader")
 ## How far a position may be above the water's own local surface height and
-## still count as "in the water" for `in_water` — a little more than a
-## marble's own diameter, so the countdown starts the moment it visibly
-## breaks the surface rather than only once it has come fully to rest.
-const WATER_CONTACT_MARGIN := 1.0
+## still count as "in the water" for `in_water` — enough that the countdown
+## starts the moment a marble visibly breaks the surface rather than only once
+## it has come fully to rest.
+##
+## Tied to `RIVER_LEVEL`, not independent of it: margin and level are added
+## together in `in_water`, so the old 1.0 against the old depth of 1.0 put the
+## trigger exactly at floor height. At the raised water line a fixed 1.0 would
+## put it *above* the floor, and a marble arcing low but cleanly across the gap
+## would be eliminated in mid-air. Keeping it equal to the level pins the
+## trigger back at floor height, which is still well clear of the surface a
+## marble comes to rest at on the bed.
+const WATER_CONTACT_MARGIN := RIVER_LEVEL
 ## How far the river's collider reaches past the gap's own edges, flush with
 ## the floor there — closes the seam against `_build_surface`'s ribbon. Same
 ## idea, same size, as `JungleCourse.RUN_OVERLAP`.
@@ -229,10 +278,16 @@ var _length := 0.0
 var _race_start_offset := 0.0
 var _race_length := 0.0
 var _rings: Array[Dictionary] = []
-## The flat open-water span of the river, as along-course offsets — set by
-## `_add_river`, read by `in_water`.
+## The waterline span — where the sloping banks meet `RIVER_LEVEL` — as
+## along-course offsets. Drawing only: wider than the flat bed below it,
+## because the water climbs part-way up both banks.
 var _water_start_offset := 0.0
 var _water_end_offset := 0.0
+## The flat bed between the two bank slopes. Collision geometry, and the span
+## `in_water` eliminates within — see that function for why elimination stays
+## on the bed rather than following the wider waterline.
+var _bed_start_offset := 0.0
+var _bed_end_offset := 0.0
 
 
 func build() -> void:
@@ -254,6 +309,7 @@ func build() -> void:
 	_add_back_wall()
 	_add_split_divider()
 	_add_jump_ramp()
+	_add_jump_boost()
 	_add_bumper()
 	_add_river()
 
@@ -318,6 +374,12 @@ func _bank_at(offset: float) -> float:
 	# right-hand edge, so the raw turn rate banks the inside of the corner up and
 	# tips marbles out of the channel instead of holding them in it.
 	return clampf(-turn_rate * BANK_GAIN, -MAX_BANK, MAX_BANK)
+
+
+## `Course.frame_at` in terms of the banked frame the whole course is swept from,
+## so a marker placed through the seam sits on the same camber the floor has.
+func frame_at(offset: float) -> Transform3D:
+	return _frame_at(offset)
 
 
 ## Builds a transform following the centreline, banked into its curves.
@@ -519,36 +581,70 @@ func _add_jump_ramp() -> void:
 	)
 
 
+## The speed floor on the run-in to the jump, spanning the full trough width so
+## no line through the funnel misses it. See `JUMP_BOOST_SPEED`.
+##
+## Unmarked, unlike every other course's boost. `BoostPad` shows itself by
+## default so a speed change is never invisible to the player, and that is the
+## right default — but here the take-off already has a visible ramp, and a
+## second glowing slab immediately in front of it read as another obstacle to
+## get past rather than as help. The ramp is the thing the player sees and the
+## thing they credit the jump to; the floor underneath it stays quiet.
+func _add_jump_boost() -> void:
+	var at := (
+		_offset_for_ratio(JUMP_GAP_RANGE.x) - JUMP_RAMP_LENGTH - JUMP_BOOST_LEAD
+	)
+	var frame := _frame_at(at)
+	var pad := BoostPad.create(
+		_width_at(JUMP_GAP_RANGE.x) * 2.0, -frame.basis.z, JUMP_BOOST_SPEED, false
+	)
+	pad.transform = frame.translated_local(Vector3(0.0, 1.2, 0.0))
+	add_child(pad)
+
+
 func _add_bumper() -> void:
 	var bumper := RotatingBumper.create()
 	bumper.transform = _frame_at(_offset_for_ratio(BUMPER_AT))
 	add_child(bumper)
 
 
-## Three pieces, all sharing the gap's own width so nothing steps in from the
-## walls: a bank sloping down from the takeoff floor, open water in the
-## middle, and a bank sloping back up to the landing floor. Both banks slope
-## from y=0 (flush with the floor they grow out of, so there is no seam) down
-## to -RIVER_DEPTH, at whatever offset that bank's own share of the gap ends.
+## The riverbed is three pieces, all sharing the gap's own width so nothing
+## steps in from the walls: a bank sloping down from the takeoff floor, a flat
+## bed in the middle, and a bank sloping back up to the landing floor. Both
+## banks slope from y=0 (flush with the floor they grow out of, so there is no
+## seam) down to -RIVER_BED_DEPTH at their own share of the gap.
 ##
-## Real collision now (see `_add_river_collision`), so a marble that misses
-## the jump lands in the gap rather than falling through it — `in_water`
-## below is what turns landing there into an elimination. Visuals are still
-## three separate quads (`_add_river_visual`), one per piece; collision is
-## deliberately not split the same way — see that function's comment.
+## The water is a fourth, separate quad laid across that bed at -RIVER_LEVEL.
+## It is *wider* than the bed: the banks are ramps, so a surface held above
+## their bottom edge meets them part-way up, and the waterline sits at
+## whatever fraction of each bank run has descended to `RIVER_LEVEL`. That is
+## the whole reason level and bed are two numbers — see `RIVER_LEVEL`.
+##
+## Real collision (see `_add_river_collision`), so a marble that misses the
+## jump lands in the gap rather than falling through it — `in_water` below is
+## what turns landing there into an elimination. Collision follows the bed,
+## not the water: the terrain is what a marble rests on, and the water surface
+## is drawn over it.
 func _add_river() -> void:
 	var gap_start := _offset_for_ratio(JUMP_GAP_RANGE.x)
 	var gap_end := _offset_for_ratio(JUMP_GAP_RANGE.y)
 	var bank_run := (gap_end - gap_start) * RIVER_BANK_FRACTION
-	_water_start_offset = gap_start + bank_run
-	_water_end_offset = gap_end - bank_run
+	_bed_start_offset = gap_start + bank_run
+	_bed_end_offset = gap_end - bank_run
+
+	# How far along each bank the waterline sits. Clamped because a level at or
+	# below the bed would otherwise push the two waterlines past each other and
+	# invert the water quad.
+	var flood := clampf(RIVER_LEVEL / RIVER_BED_DEPTH, 0.0, 1.0)
+	_water_start_offset = gap_start + bank_run * flood
+	_water_end_offset = gap_end - bank_run * flood
 
 	_add_river_collision(gap_start, gap_end)
 
-	_add_river_visual(gap_start, _water_start_offset, 0.0, -RIVER_DEPTH, RIVER_BANK_COLOUR, false)
-	_add_river_visual(gap_end, _water_end_offset, 0.0, -RIVER_DEPTH, RIVER_BANK_COLOUR, false)
+	_add_river_visual(gap_start, _bed_start_offset, 0.0, -RIVER_BED_DEPTH, RIVER_BANK_COLOUR, false)
+	_add_river_visual(gap_end, _bed_end_offset, 0.0, -RIVER_BED_DEPTH, RIVER_BANK_COLOUR, false)
 	_add_river_visual(
-		_water_start_offset, _water_end_offset, -RIVER_DEPTH, -RIVER_DEPTH, Color.WHITE, true
+		_water_start_offset, _water_end_offset, -RIVER_LEVEL, -RIVER_LEVEL, Color.WHITE, true
 	)
 
 
@@ -568,11 +664,11 @@ func _add_river() -> void:
 func _add_river_collision(gap_start: float, gap_end: float) -> void:
 	var faces := PackedVector3Array()
 	faces.append_array(_river_quad(gap_start - RIVER_OVERLAP, gap_start, 0.0, 0.0))
-	faces.append_array(_river_quad(gap_start, _water_start_offset, 0.0, -RIVER_DEPTH))
+	faces.append_array(_river_quad(gap_start, _bed_start_offset, 0.0, -RIVER_BED_DEPTH))
 	faces.append_array(
-		_river_quad(_water_start_offset, _water_end_offset, -RIVER_DEPTH, -RIVER_DEPTH)
+		_river_quad(_bed_start_offset, _bed_end_offset, -RIVER_BED_DEPTH, -RIVER_BED_DEPTH)
 	)
-	faces.append_array(_river_quad(_water_end_offset, gap_end, -RIVER_DEPTH, 0.0))
+	faces.append_array(_river_quad(_bed_end_offset, gap_end, -RIVER_BED_DEPTH, 0.0))
 	faces.append_array(_river_quad(gap_end, gap_end + RIVER_OVERLAP, 0.0, 0.0))
 
 	var body := StaticBody3D.new()
@@ -937,19 +1033,28 @@ func fall_threshold_y() -> float:
 ## Position is checked in the water quad's own frame rather than world space
 ## because the course descends and turns — "at the water's height" only means
 ## anything measured against the frame at that point along it.
+##
+## Deliberately the *bed* span, not the wider waterline the player sees. The
+## two used to be the same, and widening the visual water alone was enough to
+## start eliminating marbles in mid-air: the height test sits at floor level,
+## which a clean but low arc dips below near the far lip, and stretching the
+## along-course window to the waterline put that whole arc inside it. Only 16
+## of 96 crossed. Keeping elimination on the flat bed — the part a marble can
+## actually come to rest in — leaves the check exactly as strict as it was
+## before the water was raised, and is why raising it is a visual change only.
 func in_water(position: Vector3) -> bool:
 	var offset := curve.get_closest_offset(position)
-	if offset < _water_start_offset - 1.0 or offset > _water_end_offset + 1.0:
+	if offset < _bed_start_offset - 1.0 or offset > _bed_end_offset + 1.0:
 		return false
 
-	var clamped := clampf(offset, _water_start_offset, _water_end_offset)
+	var clamped := clampf(offset, _bed_start_offset, _bed_end_offset)
 	var frame := _frame_at(clamped)
 	var half_width := _width_at((clamped - _race_start_offset) / _race_length)
 	var local := frame.affine_inverse() * position
 	if absf(local.x) > half_width + 0.5:
 		return false
 
-	return local.y < -RIVER_DEPTH + WATER_CONTACT_MARGIN
+	return local.y < -RIVER_LEVEL + WATER_CONTACT_MARGIN
 
 
 ## Starting slots on the ramp, subtly varied per race so opening states are

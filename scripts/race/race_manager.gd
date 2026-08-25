@@ -630,14 +630,7 @@ func _update_cut_marker(delta: float) -> void:
 			_cut_marker_offset, target, clampf(delta * CUT_MARKER_SMOOTHING, 0.0, 1.0)
 		)
 
-	var at := _course.curve.sample_baked(_cut_marker_offset)
-	var ahead := _course.curve.sample_baked(minf(_cut_marker_offset + 0.5, length))
-	var behind := _course.curve.sample_baked(maxf(_cut_marker_offset - 0.5, 0.0))
-	var forward := ahead - behind
-	if forward.is_zero_approx():
-		forward = Vector3.FORWARD
-
-	_cut_marker.place(at, forward.normalized(), _course.finish_width())
+	_cut_marker.place(_course.frame_at(_cut_marker_offset), _course.finish_width())
 	_cut_marker.visible = true
 
 

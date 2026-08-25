@@ -30,17 +30,25 @@ extends Area3D
 
 var _direction := Vector3.FORWARD
 var _size := Vector3(10.0, 3.0, 2.5)
+var _show_pad := true
 
 
 ## `direction` is the way the course runs here — the boost is along the track,
 ## never along whatever the marble happened to be doing, so a marble arriving
 ## sideways off a wall is straightened rather than fired into one.
-static func create(width: float, direction: Vector3, speed: float) -> BoostPad:
+##
+## `show_pad` defaults to true for the fairness reason `_build` gives. The
+## Canyon opts out — see `CourseBuilder._add_jump_boost` for why that one is
+## deliberately unmarked.
+static func create(
+	width: float, direction: Vector3, speed: float, show_pad: bool = true
+) -> BoostPad:
 	var pad := BoostPad.new()
 	pad.name = "BoostPad"
 	pad._size = Vector3(width, 3.0, 2.5)
 	pad._direction = direction.normalized()
 	pad.target_speed = speed
+	pad._show_pad = show_pad
 	pad._build()
 	return pad
 
@@ -52,9 +60,14 @@ func _build() -> void:
 	collider.shape = shape
 	add_child(collider)
 
-	# Visible, because a speed change the player cannot see is a speed change
-	# they will read as the physics being unfair. Unshaded and faint, like the
-	# finish gate.
+	body_entered.connect(_on_body_entered)
+
+	# Visible by default, because a speed change the player cannot see is a
+	# speed change they will read as the physics being unfair. Unshaded and
+	# faint, like the finish gate.
+	if not _show_pad:
+		return
+
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.85, 0.92, 0.55, 0.16)
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -68,8 +81,6 @@ func _build() -> void:
 	visual.material_override = material
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(visual)
-
-	body_entered.connect(_on_body_entered)
 
 
 func _on_body_entered(body: Node3D) -> void:

@@ -31,6 +31,38 @@ func get_spawn_transforms(_count: int, _rng: RandomNumberGenerator) -> Array[Tra
 	return []
 
 
+## Frame of the track surface at `offset` metres along `curve`: local -Z
+## down-course, local Y the surface normal. Fixtures and markers that have to
+## sit *on* the track are placed through this rather than through `curve`
+## alone, because a point and a tangent say nothing about which way is up on a
+## course that banks or rolls.
+##
+## The default derives up from the world, which is right for any course that
+## only ever pitches. A course with camber overrides it.
+func frame_at(offset: float) -> Transform3D:
+	if curve == null:
+		return Transform3D.IDENTITY
+
+	var length := curve.get_baked_length()
+	var clamped := clampf(offset, 0.0, length)
+	var here := curve.sample_baked(clamped)
+	var forward := (
+		curve.sample_baked(minf(clamped + 0.5, length))
+		- curve.sample_baked(maxf(clamped - 0.5, 0.0))
+	).normalized()
+	if forward.is_zero_approx():
+		forward = Vector3.FORWARD
+
+	var right := forward.cross(Vector3.UP).normalized()
+	if right.is_zero_approx():
+		right = Vector3.RIGHT
+	# Perpendicular to the tangent rather than world up, so the frame lies along
+	# a descent instead of standing upright on it.
+	var up := right.cross(forward).normalized()
+
+	return Transform3D(Basis(right, up, -forward), here)
+
+
 ## Below this a marble has left the course. Per-course rather than a shared
 ## constant because it has to clear the course's own lowest point, and two
 ## courses do not descend by the same amount.

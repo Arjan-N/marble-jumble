@@ -248,6 +248,26 @@ func _point(s: float) -> Vector3:
 	return _path.point_at(s)
 
 
+## `Course.frame_at` for a course laid out along a `CoursePath`.
+##
+## Camber comes from the path and the origin comes from the curve, rather than
+## both from the path. The curve is a polyline through sampled points, so its
+## arc length drifts against the path's by a metre or two over a course, and
+## the offset handed in here was measured against the curve — by the camera,
+## and by the ranking that decided which marble the cut is at. Taking the
+## position from the curve puts the marker where the rest of the race already
+## agrees that offset is; the drift only shifts which bank angle is sampled,
+## and over a metre of track that is a fraction of a degree.
+func frame_at(offset: float) -> Transform3D:
+	if curve == null:
+		return Transform3D.IDENTITY
+
+	var length := curve.get_baked_length()
+	var clamped := clampf(offset, 0.0, length)
+	var frame := _frame_at(_path.s_at_curve_offset(clamped, length))
+	return Transform3D(frame.basis, curve.sample_baked(clamped))
+
+
 func _frame_at(s: float) -> Transform3D:
 	return _path.frame_at(s)
 

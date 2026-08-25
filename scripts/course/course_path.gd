@@ -234,6 +234,20 @@ func frame_at(s: float) -> Transform3D:
 	return Transform3D(Basis(right, up, -forward), point_at(s))
 
 
+## Path distance `s` for a distance along the `Curve3D` `to_curve()` produced.
+##
+## The two do not share an origin — `s` starts at `-ramp`, the curve starts at
+## zero — and they do not share a length either: the curve is a polyline through
+## sampled points, so it cuts every corner it turns and bakes slightly short.
+## Scaling by the ratio keeps a marker placed from a curve offset on the piece
+## of track the marble at that offset is actually on.
+func s_at_curve_offset(offset: float, curve_length: float) -> float:
+	var span := ramp + length + runoff
+	if curve_length <= 0.0:
+		return -ramp + offset
+	return -ramp + offset * span / curve_length
+
+
 ## Sampled rather than given endpoints: the camera steers by this curve's
 ## tangent, and on a course that turns, a straight line between start and finish
 ## would point it at the wrong place for most of the race.

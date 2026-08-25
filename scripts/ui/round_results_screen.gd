@@ -44,6 +44,8 @@ const SUBTITLE_GAP := 4.0
 const CAPTION_BAND := 38.0
 const CROSS_BAND := 30.0
 const PILL_BAND := 44.0
+## Room below the row for each marble's name, on every panel.
+const NAME_BAND := 32.0
 const PANEL_PAD := 28.0
 const ROW_INSET := 14.0
 ## Widest a single marble's cell may get. Without a cap, the final round's lone
@@ -307,6 +309,7 @@ func _build_marble_panel(
 
 	var captions: Array[Label] = []
 	var crosses: Array[CrossMark] = []
+	var names: Array[Label] = []
 	var you_pill: Control = null
 	for i in entries.size():
 		var entry: Dictionary = entries[i]
@@ -323,6 +326,12 @@ func _build_marble_panel(
 			var cross := CrossMark.create(44.0)
 			panel.add_child(cross)
 			crosses.append(cross)
+		var name_label := UIKit.label(
+			String(entry.get("name", "")).to_upper(), 22, UIKit.CYAN if is_player else UIKit.MUTED, 4
+		)
+		name_label.clip_text = true
+		panel.add_child(name_label)
+		names.append(name_label)
 		if is_player:
 			you_pill = _build_you_pill()
 			panel.add_child(you_pill)
@@ -332,6 +341,7 @@ func _build_marble_panel(
 	panel.set_meta("row", row)
 	panel.set_meta("captions", captions)
 	panel.set_meta("crosses", crosses)
+	panel.set_meta("names", names)
 	panel.set_meta("you_pill", you_pill)
 	panel.set_meta("entries", entries.size())
 	return panel
@@ -584,6 +594,7 @@ func _panel_metrics(panel: Control, s: float, width: float) -> Dictionary:
 	var head := (TAB_HEIGHT + SUBTITLE_HEIGHT + SUBTITLE_GAP) * s
 	var caption_band := CAPTION_BAND * s if has_captions else 0.0
 	var cross_band := CROSS_BAND * s if has_crosses else 0.0
+	var name_band := NAME_BAND * s
 	var pill_band := PILL_BAND * s if has_pill else 0.0
 
 	return {
@@ -591,7 +602,9 @@ func _panel_metrics(panel: Control, s: float, width: float) -> Dictionary:
 		"row_width": row_width,
 		"row_height": row_height,
 		"row_top": head + caption_band + cross_band,
-		"height": head + caption_band + cross_band + row_height + pill_band + PANEL_PAD * s,
+		"height": (
+			head + caption_band + cross_band + row_height + name_band + pill_band + PANEL_PAD * s
+		),
 	}
 
 
@@ -618,6 +631,7 @@ func _layout_panel(panel: Control, s: float, metrics: Dictionary) -> void:
 
 	var captions: Array = panel.get_meta("captions")
 	var crosses: Array = panel.get_meta("crosses")
+	var names: Array = panel.get_meta("names")
 	var you_pill := _you_pill(panel)
 	var row := panel.get_meta("row") as MarbleRowView
 
@@ -627,6 +641,17 @@ func _layout_panel(panel: Control, s: float, metrics: Dictionary) -> void:
 	row.layout(Vector2(row_width, float(metrics["row_height"])))
 
 	var radius := row.marble_radius_px()
+	var name_top := row.position.y + row.size.y
+	for i in names.size():
+		var name_label := names[i] as Label
+		var name_width := row.cell_centre_x(1) - row.cell_centre_x(0) if names.size() > 1 else row_width
+		name_width = maxf(name_width, 70.0 * s)
+		name_label.position = Vector2(
+			row.position.x + row.cell_centre_x(i) - name_width * 0.5, name_top
+		)
+		name_label.size = Vector2(name_width, NAME_BAND * s)
+		_set_font(name_label, 22.0 * s)
+
 	for i in captions.size():
 		var caption := captions[i] as Label
 		var caption_width := 120.0 * s
@@ -664,7 +689,7 @@ func _layout_panel(panel: Control, s: float, metrics: Dictionary) -> void:
 			var pill_height := 42.0 * s
 			you_pill.position = Vector2(
 				row.position.x + row.cell_centre_x(cell) - pill_width * 0.5,
-				row.position.y + row.size.y * 0.5 + radius - pill_height * 0.18
+				name_top + NAME_BAND * s
 			)
 			you_pill.size = Vector2(pill_width, pill_height)
 			you_pill.pivot_offset = you_pill.size * 0.5
@@ -732,11 +757,17 @@ func _reveal_panel(panel: Control, _unused: bool) -> void:
 		caption.modulate.a = 0.0
 		caption.scale = Vector2(0.5, 0.5)
 		_pop(caption, 0.10 + float(i) * MARBLE_STAGGER)
+	var names: Array = panel.get_meta("names")
+	for i in names.size():
+		var name_label := names[i] as Control
+		name_label.modulate.a = 0.0
+		name_label.scale = Vector2(0.5, 0.5)
+		_pop(name_label, 0.10 + float(i) * MARBLE_STAGGER)
 	var you_pill := _you_pill(panel)
 	if you_pill != null:
 		you_pill.modulate.a = 0.0
 		you_pill.scale = Vector2(0.5, 0.5)
-		_pop(you_pill, 0.10 + float(captions.size()) * MARBLE_STAGGER)
+		_pop(you_pill, 0.10 + float(names.size()) * MARBLE_STAGGER)
 
 
 func _reveal_crosses() -> void:
@@ -926,7 +957,7 @@ func _skip() -> void:
 		control.modulate.a = 1.0
 		control.scale = Vector2.ONE
 	for panel in [_survivors_panel, _eliminated_panel]:
-		for group in ["captions", "crosses"]:
+		for group in ["captions", "crosses", "names"]:
 			for control in panel.get_meta(group):
 				control.modulate.a = 1.0
 				control.scale = Vector2.ONE
