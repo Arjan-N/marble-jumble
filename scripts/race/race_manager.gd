@@ -103,6 +103,7 @@ const COURSE_POOL: Array[GDScript] = [
 	# fraction ~0.46-0.50 permanently). Left out of the pool until that's
 	# fixed — see the Sky Ruins course-in-progress notes for where it stands.
 	# preload("res://scripts/course/sky_ruins_course.gd"),
+	preload("res://scripts/course/foundry_course.gd"),
 	preload("res://scripts/course/course_builder.gd"),
 ]
 
