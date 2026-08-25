@@ -44,6 +44,29 @@ The shop's own visuals are placeholder; it is the flow that is real. Reward
 amounts are invented (`REWARD_*` in `race_manager.gd`) — `PROJECT.md` §17
 item 10 still has the real values TBD.
 
+## Round transition: the course roulette
+
+**Status:** results half built, roulette not started. **Wanted since:**
+`PROJECT.md` §4, which calls the whole between-rounds moment a core product
+feature rather than a loading screen.
+
+§4.4's flow is: show the field → run the course roulette → eliminate → update
+the count → reveal the next course → start it. `RoundResultsScreen`
+(`scripts/ui/round_results_screen.gd`) now does everything up to the reveal:
+it presents the finished field as two rows of the real 3D marbles, marks the
+eliminated, states the player's position, pays and animates the reward when a
+tournament ends, and — the part that makes it a moment rather than a pause —
+holds until the player presses CONTINUE.
+
+`tools/preview_results.gd` renders it on its own with a synthetic result, for
+the two states a real tournament takes several rounds to reach.
+
+**Not yet done:** the roulette itself (§4.3). `race_manager._pick_course`
+still chooses the next course silently, inside `_start_race`, *after* the
+player has already pressed CONTINUE — so the reveal has nowhere to happen. It
+would need the pick hoisted out of `_start_race` and handed to the results
+screen to play out before the scene changes.
+
 ## Volcano Run: visual identity
 
 **Status:** course built, presentation not. **Wanted since:** 2026-08-22

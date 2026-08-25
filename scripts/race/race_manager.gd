@@ -127,6 +127,10 @@ var _tuning: MarbleTuning
 ## round to the next. Empty means "start a fresh tournament" — `_spawn_field`
 ## generates a full field of `MARBLE_COUNT` when it finds nothing here.
 var _roster: Array = []
+## The survivors' roster for the round CONTINUE will start, captured while the
+## marbles that earned it are still alive — the results screen holds the game
+## for as long as the player likes, and `_teardown_race` frees the field.
+var _pending_roster: Array = []
 var _round_number := 1
 ## "" while the tournament is ongoing; "won" or "eliminated" once the player's
 ## run through it is decided. Only ever set in `_resolve_round`.
@@ -160,6 +164,15 @@ var _settle_order: Array[Marble] = []
 var _settle_index := 0
 var _settle_elapsed := 0.0
 var _finish_order: Array[Marble] = []
+## The order marbles left the course in, oldest first. Survivors are still
+## decided by `_finish_order` alone — falling never buys a place — but the
+## results screen has to show the *whole* field in a defensible order, and
+## "fell last" is the only thing that distinguishes two marbles who both never
+## crossed the line.
+var _eliminated_order: Array[Marble] = []
+## Presents the finished round and gates the next one. Non-null only between
+## `_resolve_round` and whichever button the player presses.
+var _results_screen: RoundResultsScreen = null
 
 var _phase: Phase = Phase.SETTLING
 var _race_time: float = 0.0
@@ -224,19 +237,12 @@ var _grace_timer := -1.0
 ## never arrives. Well above the ~20-30s target for a healthy course.
 const MAX_ROUND_DURATION := 75.0
 
-## How long the result screen holds before the next round's field spawns.
-const NEXT_ROUND_DELAY := 3.0
-## Longer than the countdown/GO shout (0.85s) — "QUALIFIED!" needs a moment to
-## actually be read, not just flash past. Comfortably inside NEXT_ROUND_DELAY.
-const OUTCOME_SHOUT_SECONDS := 1.8
-
-## Once the tournament itself is over (won or eliminated — not just a round),
-## there is nothing left on this screen to watch: the loop in PROJECT.md
-## section 5 goes home to rewards/customise/play again, not back into another
-## race in place. Longer than OUTCOME_SHOUT_SECONDS so the shout finishes
-## before the scene changes out from under it.
+## A finished round no longer advances on a timer. `RoundResultsScreen`
+## (PROJECT.md section 4) presents the field, shows who survived and who is
+## out, and waits — the next round starts when the player presses CONTINUE, and
+## a finished tournament ends on PLAY AGAIN or HOME rather than sliding back to
+## the home screen on its own.
 const HOME_SCENE := "res://scenes/home.tscn"
-const RETURN_TO_HOME_DELAY := 3.2
 
 
 func _ready() -> void:
@@ -380,8 +386,13 @@ func _teardown_race() -> void:
 		if is_instance_valid(marble):
 			marble.queue_free()
 
+	if _results_screen != null and is_instance_valid(_results_screen):
+		_results_screen.queue_free()
+	_results_screen = null
+
 	_marbles.clear()
 	_finish_order.clear()
+	_eliminated_order.clear()
 	_standings.clear()
 	_progress.clear()
 	_player = null
@@ -396,6 +407,8 @@ func _teardown_race() -> void:
 
 	if _hud != null and is_instance_valid(_hud):
 		_hud.clear_notice()
+		# Hidden while the results screen is up; a new race brings it back.
+		_hud.visible = true
 
 
 ## A full reset rather than a round transition: clears the roster and round
@@ -403,6 +416,7 @@ func _teardown_race() -> void:
 ## shrunken one.
 func _restart() -> void:
 	_roster = []
+	_pending_roster = []
 	_round_number = 1
 	_tournament_outcome = ""
 	_active_course_script = null
@@ -937,6 +951,7 @@ func _eliminate(marble: Marble) -> void:
 	marble.visible = false
 	marble.freeze = true
 	marble.linear_damp = 0.0
+	_eliminated_order.append(marble)
 	_water_since.erase(marble)
 	_water_delay.erase(marble)
 	if marble.is_player:
@@ -995,13 +1010,18 @@ func _check_round_progress() -> void:
 			_grace_timer = ROUND_GRACE_PERIOD
 
 
-## Scores the round, decides the tournament's fate for the player, and — if
-## they survive and it isn't already down to a winner — schedules the next
-## round on a new course with the survivors' roster.
+## Scores the round, decides the tournament's fate for the player, and hands
+## the finished result to `RoundResultsScreen`.
 ##
 ## Survivors are the top half of `_finish_order` by finish time, per
 ## PROJECT.md section 3; falling never counts as finishing, however few
-## marbles actually crossed the line before the grace period ran out.
+## marbles actually crossed the line before the grace period ran out. That rule
+## is untouched — the results screen only reports it.
+##
+## Nothing advances from here. The next round, a fresh tournament, or the home
+## screen are all reached through the screen's buttons, so the player decides
+## when the tournament moves on (PROJECT.md section 4: the transition is a
+## deliberate game moment, not a loading indicator).
 func _resolve_round() -> void:
 	if _phase == Phase.COMPLETE:
 		return
@@ -1013,56 +1033,138 @@ func _resolve_round() -> void:
 	var player_survives := (
 		_player != null and is_instance_valid(_player) and survivors.has(_player)
 	)
+	var won := player_survives and survivors.size() <= 1
 
 	print(
 		"Round %d complete in %.1fs | finished %d/%d | player %s"
 		% [_round_number, _race_time, _finish_order.size(), _marbles.size(), _player_status()]
 	)
 
+	var reward := 0
 	if not player_survives:
 		_tournament_outcome = "eliminated"
-		PlayerProfile.add_coins(REWARD_ELIMINATED + REWARD_PER_ROUND_SURVIVED * (_round_number - 1))
-		_hud.shout("ELIMINATED!", Color(0.95, 0.35, 0.35), OUTCOME_SHOUT_SECONDS)
-		_return_to_home_after_delay()
-		return
-	if survivors.size() <= 1:
+		reward = REWARD_ELIMINATED + REWARD_PER_ROUND_SURVIVED * (_round_number - 1)
+	elif won:
 		_tournament_outcome = "won"
-		PlayerProfile.add_coins(REWARD_WON)
-		_hud.shout("WINNER!", Color(1.0, 0.85, 0.3), OUTCOME_SHOUT_SECONDS)
-		_return_to_home_after_delay()
-		return
+		reward = REWARD_WON
 
-	_hud.shout("QUALIFIED!", Color(0.72, 0.95, 0.62), OUTCOME_SHOUT_SECONDS)
+	# The survivors' roster is captured now, while the marbles are still alive.
+	# `_teardown_race` frees them, and CONTINUE runs after an arbitrary wait.
+	if player_survives and not won:
+		var next_roster: Array = []
+		for marble in survivors:
+			next_roster.append(_roster_entry(marble))
+		_pending_roster = next_roster
 
-	var next_roster: Array = []
+	_freeze_race()
+	_show_results(survivors, player_survives, won, reward)
+
+
+## The cosmetic identity a marble carries between rounds and onto the results
+## screen. Physics attributes are deliberately absent — every marble is
+## identical (PROJECT.md section 7) and only the look travels.
+func _roster_entry(marble: Marble) -> Dictionary:
+	return {
+		"colour": marble.colour,
+		"name": marble.marble_name,
+		"is_player": marble.is_player,
+		"skin": marble.skin,
+	}
+
+
+## Every marble in the round, best result first: finishers in the order they
+## crossed, then whoever was still going when the round was called (by distance
+## along the course), then the fallen, most recent first.
+##
+## This decides display order and the player's stated position only. It does
+## not touch who survives — that stays `_finish_order`'s to say.
+func _final_order() -> Array[Marble]:
+	var order: Array[Marble] = []
+	order.append_array(_finish_order)
+
+	var stranded: Array[Marble] = []
+	for marble in _marbles:
+		if not order.has(marble) and not _eliminated_order.has(marble):
+			stranded.append(marble)
+	stranded.sort_custom(
+		func(a: Marble, b: Marble) -> bool:
+			return float(_progress.get(a, 0.0)) > float(_progress.get(b, 0.0))
+	)
+	order.append_array(stranded)
+
+	var fallen := _eliminated_order.duplicate()
+	fallen.reverse()
+	for marble in fallen:
+		if not order.has(marble):
+			order.append(marble)
+	return order
+
+
+## Stops the race dead so the results screen has a still frame behind it. The
+## marbles keep their positions and the course keeps rendering — the brief asks
+## for the live environment as the background — but nothing moves and the race
+## HUD steps aside for the panels.
+func _freeze_race() -> void:
+	for marble in _marbles:
+		if is_instance_valid(marble):
+			marble.freeze = true
+			marble.linear_velocity = Vector3.ZERO
+			marble.angular_velocity = Vector3.ZERO
+	if _hud != null and is_instance_valid(_hud):
+		_hud.clear_notice()
+		_hud.visible = false
+	if _cut_marker != null and is_instance_valid(_cut_marker):
+		_cut_marker.visible = false
+	if _rank_tag != null and is_instance_valid(_rank_tag):
+		_rank_tag.visible = false
+
+
+func _show_results(
+	survivors: Array, player_survives: bool, won: bool, reward: int
+) -> void:
+	var order := _final_order()
+	var eliminated: Array = []
+	for marble in order:
+		if not survivors.has(marble):
+			eliminated.append(_roster_entry(marble))
+
+	var survivor_entries: Array = []
 	for marble in survivors:
-		next_roster.append({
-			"colour": marble.colour,
-			"name": marble.marble_name,
-			"is_player": marble.is_player,
-			"skin": marble.skin,
-		})
+		survivor_entries.append(_roster_entry(marble))
 
+	var place := order.find(_player) + 1 if _player != null and is_instance_valid(_player) else 0
+
+	_results_screen = RoundResultsScreen.create({
+		"round_number": _round_number,
+		"field_size": _marbles.size(),
+		"player_place": place,
+		"player_survived": player_survives,
+		"tournament_over": not player_survives or won,
+		"player_won": won,
+		"survivors": survivor_entries,
+		"eliminated": eliminated,
+		"coins_awarded": reward,
+	})
+	_results_screen.continue_pressed.connect(_on_results_continue)
+	_results_screen.play_again_pressed.connect(_restart)
+	_results_screen.home_pressed.connect(_on_results_home)
+	add_child(_results_screen)
+
+
+## CONTINUE: the round the player just survived becomes the round behind them,
+## and the survivors race again on a different course.
+func _on_results_continue() -> void:
+	if _pending_roster.is_empty():
+		return
 	_round_number += 1
-	await get_tree().create_timer(NEXT_ROUND_DELAY).timeout
-	_roster = next_roster
+	_roster = _pending_roster
+	_pending_roster = []
+	# `_start_race` tears the old field down first, which is what frees the
+	# results screen this call came from.
 	_start_race()
 
 
-## Holds the outcome on screen just long enough to read, then leaves the race
-## scene entirely — a finished tournament has nowhere left to go on this
-## screen (PROJECT.md section 5: results/rewards/customise/play again all live
-## on or past the home screen, not in another lap of this one).
-##
-## Guarded against the manual `R` restart firing during the wait: that already
-## calls `_start_race()` and resets `_tournament_outcome`, so a stale timer
-## from the tournament it interrupted must not then yank the player back out
-## of the fresh one.
-func _return_to_home_after_delay() -> void:
-	var outcome := _tournament_outcome
-	await get_tree().create_timer(RETURN_TO_HOME_DELAY).timeout
-	if _tournament_outcome != outcome:
-		return
+func _on_results_home() -> void:
 	get_tree().change_scene_to_file(HOME_SCENE)
 
 
