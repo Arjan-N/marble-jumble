@@ -117,6 +117,12 @@ const COURSE_POOL: Array[GDScript] = [
 	# confirms no stalls in Fissure Bend. Temporarily enabled below for manual
 	# playtesting — revert before shipping if the probe still hasn't run.
 	preload("res://scripts/course/glacier_fault_course.gd"),
+	# Temple Run: probe-verified with `tools/probe_course.tscn`
+	# (MJ_COURSE=temple) — 12/12 finish, no stalls, no falls. Winner at ~27s
+	# and the sixth finisher at ~29s, inside DECISIONS.md's 20-30s target but
+	# at the top of it, so this is the first course to shorten if race length
+	# gets tuned.
+	preload("res://scripts/course/temple_run_course.gd"),
 	preload("res://scripts/course/course_builder.gd"),
 ]
 

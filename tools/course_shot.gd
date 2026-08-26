@@ -29,6 +29,7 @@ const COURSES := {
 	"orbital": preload("res://scripts/course/orbital_course.gd"),
 	"slope": preload("res://scripts/course/slope_course.gd"),
 	"glacier": preload("res://scripts/course/glacier_fault_course.gd"),
+	"temple": preload("res://scripts/course/temple_run_course.gd"),
 }
 
 ## Where along the course to stand, one per section of Volcano Run. Pick one
