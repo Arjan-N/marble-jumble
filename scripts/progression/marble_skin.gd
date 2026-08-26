@@ -29,6 +29,11 @@ const MAP_HEIGHT := 128
 ## Cache keyed by finish name. Two entries: "albedo" and, optionally, "emission".
 static var _maps: Dictionary = {}
 
+## Cache for `apply_marbled`, keyed by colour (its HTML hex) rather than a
+## finish name — every plain colour, not just a fixed set of named skins,
+## gets one of these.
+static var _marbled_maps: Dictionary = {}
+
 
 ## Applies `skin` to a material already carrying its flat albedo colour.
 ## A skin with no `finish` is left exactly as it was.
@@ -104,6 +109,53 @@ static func _maps_for(finish: String, skin: Dictionary) -> Dictionary:
 
 	_maps[finish] = maps
 	return maps
+
+
+## The look every marble without a shop `finish` gets: a swirl of the same
+## colour, lighter and darker, instead of one flat sphere. Plain colours (the
+## free default skin, every opponent) used to go straight to `marble.gd`'s
+## flat `albedo_color`, which read as too uniform next to the elaborate skins
+## rolling beside it.
+static func apply_marbled(material: StandardMaterial3D, colour: Color) -> void:
+	material.albedo_color = Color.WHITE
+	material.albedo_texture = _texture(_marbled_maps_for(colour))
+
+
+static func _marbled_maps_for(colour: Color) -> Image:
+	var key := colour.to_html(false)
+	if _marbled_maps.has(key):
+		return _marbled_maps[key]
+
+	var image := _paint_marbled(colour)
+	_marbled_maps[key] = image
+	return image
+
+
+## Two noise fields at different scales swirled around the same hue: a broad
+## one for the sweeping twist, a finer one layered in so the swirl has grain
+## rather than reading as a smooth gradient. Seeded from the colour itself so
+## the same opponent colour always paints the same swirl, and different
+## opponents don't all share one pattern.
+static func _paint_marbled(colour: Color) -> Image:
+	var image := _blank()
+	var seed_value := int(colour.to_rgba32())
+	var swirl := _noise(seed_value, 1.6, 3)
+	var grain := _noise(seed_value + 97, 4.5, 2)
+	# Subtle on purpose — this is the base look every marble gets, not a shop
+	# skin meant to stand out. The old 0.4/0.35 swing read as a much louder
+	# pattern than a "faint marbling" was meant to be.
+	var light := colour.lightened(0.16)
+	var dark := colour.darkened(0.14)
+
+	for y in MAP_HEIGHT:
+		var v := (float(y) + 0.5) / MAP_HEIGHT
+		for x in MAP_WIDTH:
+			var u := (float(x) + 0.5) / MAP_WIDTH
+			var dir := _direction(u, v)
+			var t := swirl.get_noise_3dv(dir) * 0.7 + grain.get_noise_3dv(dir) * 0.3
+			t = clampf(t * 0.5 + 0.5, 0.0, 1.0)
+			image.set_pixel(x, y, dark.lerp(light, t))
+	return image
 
 
 static func _texture(image: Image) -> ImageTexture:
@@ -392,10 +444,10 @@ static func swatch_texture(skin: Dictionary, size: int) -> ImageTexture:
 	image.fill(Color(0, 0, 0, 0))
 
 	var finish := String(skin.get("finish", ""))
-	var maps := _maps_for(finish, skin) if finish != "" else {}
+	var flat: Color = skin.get("colour", Color.WHITE)
+	var maps := _maps_for(finish, skin) if finish != "" else {"albedo": _texture(_marbled_maps_for(flat))}
 	var albedo: Image = maps["albedo"].get_image() if maps.has("albedo") else null
 	var glow: Image = maps["emission"].get_image() if maps.has("emission") else null
-	var flat: Color = skin.get("colour", Color.WHITE)
 	var shine := 1.0 - float(skin.get("roughness", 0.25))
 
 	# Roughly the Home preview's raked key light, so a skin sits the same way up

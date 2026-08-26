@@ -496,10 +496,22 @@ func _generate_initial_roster() -> Array:
 	return roster
 
 
+## Golden-angle hue step: irrational, so no run of `MARBLE_COUNT` consecutive
+## hues wraps back near an earlier one the way a fixed fraction like the old
+## 0.13 did (12 * 0.13 = 1.56, which put four pairs of opponents within a few
+## degrees of each other). Saturation and value are jittered per opponent too,
+## across a wide enough range to give the field real variety — a shared
+## 0.45/0.85 was the other half of the sameness, on top of the hue
+## clustering.
+const HUE_STEP := 0.618034
+
 func _opponent_colour(index: int) -> Color:
 	# Cosmetic only. Opponents are physically identical to the player
 	# (PROJECT.md section 7).
-	return Color.from_hsv(fmod(float(index) * 0.13, 1.0), 0.45, 0.85)
+	var hue := fmod(float(index) * HUE_STEP + _rng.randf_range(-0.06, 0.06), 1.0)
+	var saturation := _rng.randf_range(0.22, 0.72)
+	var value := _rng.randf_range(0.62, 0.95)
+	return Color.from_hsv(hue, saturation, value)
 
 
 func _add_barrier() -> void:

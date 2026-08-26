@@ -160,8 +160,11 @@ func _build_material(colour: Color) -> StandardMaterial3D:
 	material.metallic = 0.1
 	material.roughness = 0.25
 	# A patterned skin replaces the albedo above with its own map and brings its
-	# own metallic/roughness. A plain one leaves all three exactly as set here.
+	# own metallic/roughness. A plain one leaves all three exactly as set here,
+	# and gets the generic marbled swirl below instead of a flat sphere.
 	MarbleSkin.apply(material, skin)
+	if String(skin.get("finish", "")) == "":
+		MarbleSkin.apply_marbled(material, colour)
 
 	if is_player:
 		# The persistent identification the spec calls for: prominent enough to
