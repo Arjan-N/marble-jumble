@@ -104,6 +104,19 @@ const COURSE_POOL: Array[GDScript] = [
 	# fixed — see the Sky Ruins course-in-progress notes for where it stands.
 	# preload("res://scripts/course/sky_ruins_course.gd"),
 	preload("res://scripts/course/foundry_course.gd"),
+	# Glacier Fault is written (geometry + friction pass, no ice shader or
+	# painted backdrop yet) but not probe-verified: `tools/probe_glacier_fault.gd`
+	# currently can't run in this environment (`godot --headless --script`
+	# fails to resolve the `PlayerProfile` autoload before compiling
+	# `marble.gd` — reproduces identically on the pre-existing
+	# `tools/probe_sky_ruins.gd`, so it's an environment issue, not something
+	# this course caused). `tools/course_shot.gd` (MJ_COURSE=glacier) confirms
+	# the geometry builds and reads correctly, including Fissure Bend's walled
+	# containment, but no field of real marbles has been run through it yet.
+	# Leave commented out until the probe issue is fixed and a clean run
+	# confirms no stalls in Fissure Bend. Temporarily enabled below for manual
+	# playtesting — revert before shipping if the probe still hasn't run.
+	preload("res://scripts/course/glacier_fault_course.gd"),
 	preload("res://scripts/course/course_builder.gd"),
 ]
 
@@ -113,6 +126,10 @@ var _course: Course
 var _active_course_script: GDScript
 var _barrier: StartBarrier
 var _camera: ChaseCamera
+## Held so `_apply_default_environment` and `Course.decorate_environment` can
+## reach the live environment between races, rather than only at `_ready`.
+var _environment: Environment
+var _sun: DirectionalLight3D
 var _hud: RaceHUD
 var _sound: SoundManager
 var _cut_marker: CutMarker
@@ -345,6 +362,12 @@ func _start_race() -> void:
 	_course.name = "Course"
 	add_child(_course)
 	_course.build()
+
+	# After `build`, so a course can size its own fog or ambient against
+	# geometry it has just laid out. Defaults first, so the previous
+	# round's course leaves nothing behind.
+	_apply_default_environment()
+	_course.decorate_environment(_environment, _sun)
 
 	_spawn_field()
 	_add_barrier()
@@ -1177,12 +1200,33 @@ func _on_results_home() -> void:
 
 
 func _setup_environment() -> void:
+	var world := WorldEnvironment.new()
+	world.environment = Environment.new()
+	_environment = world.environment
+	add_child(world)
+
+	_sun = DirectionalLight3D.new()
+	_sun.shadow_enabled = true
+	add_child(_sun)
+
+	_apply_default_environment()
+
+
+## The pool's neutral sky, ambient and sun, reapplied from scratch before every
+## race.
+##
+## Split out of `_setup_environment` when courses gained
+## `Course.decorate_environment`. The values are unchanged and the reasoning
+## below is the original; what is new is that they are now *restored* each race
+## rather than set once. A course that warms the ambient for its own desert must
+## not leave the jungle racing under a desert sun two rounds later, and the
+## cheapest guarantee of that is to hand every race the same starting point
+## rather than to ask each course to undo itself.
+func _apply_default_environment() -> void:
 	# Shared across every course in COURSE_POOL, not just the Canyon — Jungle,
-	# Orbital and Volcano run under this same sky, and it is set once at
-	# `_ready`, before a course is even picked. So it stays here at roughly its
-	# original tone rather than being pushed toward a desert palette; the
-	# Canyon-specific reskin lives entirely in `course_builder.gd` instead
-	# (dressing, floor colour), which is the only file this task is scoped to.
+	# Orbital and Volcano run under this same sky. So it stays here at roughly
+	# its original tone rather than being pushed toward any one course's
+	# palette; per-course departures go through `decorate_environment`.
 	var sky_material := ProceduralSkyMaterial.new()
 	sky_material.sky_top_color = Color(0.30, 0.47, 0.74)
 	sky_material.sky_horizon_color = Color(0.85, 0.74, 0.60)
@@ -1192,31 +1236,27 @@ func _setup_environment() -> void:
 	var sky := Sky.new()
 	sky.sky_material = sky_material
 
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_SKY
-	environment.sky = sky
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	_environment.background_mode = Environment.BG_SKY
+	_environment.sky = sky
+	_environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	_environment.ambient_light_color = Color(1.0, 1.0, 1.0)
 	# Lifted from 0.6 once the course grew six-metre canyon walls. They throw a
 	# long shadow across the track, and at the old ambient level half the width
 	# went nearly black — a marble in that half was unreadable, which section 2.5
 	# does not allow. Ambient is what fills a canyon floor in reality too.
-	environment.ambient_light_energy = 0.95
+	_environment.ambient_light_energy = 0.95
+	_environment.fog_enabled = false
 
-	var world := WorldEnvironment.new()
-	world.environment = environment
-	add_child(world)
-
-	var sun := DirectionalLight3D.new()
 	# Steeper and more square-on than the old 52/38. A low sun down a narrow
 	# trough puts one wall's shadow across most of the track; near midday the
 	# walls shade their own bases and the racing surface stays lit. Not quite
 	# overhead, because some rake is what gives the marbles their own shadows,
 	# and those shadows are the only cue that tells a viewer a marble is airborne
 	# over the gap rather than rolling.
-	sun.rotation_degrees = Vector3(-68.0, -22.0, 0.0)
-	sun.light_energy = 1.15
-	sun.shadow_enabled = true
-	add_child(sun)
+	_sun.rotation_degrees = Vector3(-68.0, -22.0, 0.0)
+	_sun.light_energy = 1.15
+	_sun.light_color = Color(1.0, 1.0, 1.0)
+
 
 	_hud = RaceHUD.create()
 	add_child(_hud)

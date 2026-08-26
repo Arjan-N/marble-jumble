@@ -27,6 +27,23 @@ func build() -> void:
 	pass
 
 
+## Optional per-course tuning of the shared sky, ambient and sun.
+##
+## `race_manager._setup_environment` builds one environment for the whole pool
+## and its comment is explicit that it must stay neutral, because Jungle,
+## Orbital, Volcano and the Canyon all race under it. That left a course no way
+## to say anything about its own light, and light is most of what separates a
+## desert from a jungle — the Canyon's warm shadows and deep sky cannot be
+## expressed in albedo alone, since a shadowed face shows ambient and nothing
+## else.
+##
+## Called after `build`, on the live environment, so anything a course does not
+## touch keeps the shared value. Courses that want the pool's look override
+## nothing.
+func decorate_environment(_environment: Environment, _sun: DirectionalLight3D) -> void:
+	pass
+
+
 func get_spawn_transforms(_count: int, _rng: RandomNumberGenerator) -> Array[Transform3D]:
 	return []
 

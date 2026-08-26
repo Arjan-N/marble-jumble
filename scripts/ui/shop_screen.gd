@@ -16,6 +16,7 @@ const SWATCH_PX := 48
 
 var _coins_label: Label
 var _rows: Dictionary = {} ## skin id -> row Control, so a purchase can refresh just that row.
+var _trail_rows: Dictionary = {} ## trail id -> row Control.
 
 
 func _ready() -> void:
@@ -41,15 +42,41 @@ func _ready() -> void:
 
 	layout.add_child(_build_header())
 
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_child(scroll)
+
+	var sections := VBoxContainer.new()
+	sections.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sections.add_theme_constant_override("separation", 16)
+	scroll.add_child(sections)
+
+	sections.add_child(_section_label("SKINS"))
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 8)
-	layout.add_child(list)
+	sections.add_child(list)
 	for skin in PlayerProfile.SKINS:
 		var row := _build_skin_row(skin)
 		_rows[skin["id"]] = row
 		list.add_child(row)
 
+	sections.add_child(_section_label("TRAILS"))
+	var trail_list := VBoxContainer.new()
+	trail_list.add_theme_constant_override("separation", 8)
+	sections.add_child(trail_list)
+	for style in PlayerProfile.TRAILS:
+		var row := _build_trail_row(style)
+		_trail_rows[style["id"]] = row
+		trail_list.add_child(row)
+
 	PlayerProfile.coins_changed.connect(_on_coins_changed)
+
+
+func _section_label(text: String) -> Control:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 18)
+	return label
 
 
 func _build_header() -> Control:
@@ -100,11 +127,43 @@ func _build_skin_row(skin: Dictionary) -> Control:
 	return row
 
 
+func _build_trail_row(style: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+
+	var swatch := TextureRect.new()
+	swatch.texture = MarbleTrail.swatch_texture(style, PlayerProfile.equipped_colour(), SWATCH_PX)
+	swatch.custom_minimum_size = Vector2(SWATCH_PX, SWATCH_PX)
+	row.add_child(swatch)
+
+	var name_label := Label.new()
+	name_label.text = style["name"]
+	name_label.custom_minimum_size = Vector2(140, 0)
+	row.add_child(name_label)
+
+	var action := Button.new()
+	action.custom_minimum_size = Vector2(120, 0)
+	action.name = "Action"
+	action.pressed.connect(func() -> void: _on_trail_action_pressed(style["id"]))
+	row.add_child(action)
+
+	_refresh_trail_row(row, style["id"])
+	return row
+
+
 func _on_action_pressed(id: int) -> void:
 	if PlayerProfile.owns_skin(id):
 		PlayerProfile.equip_skin(id)
 	else:
 		PlayerProfile.buy_skin(id)
+	_refresh_all_rows()
+
+
+func _on_trail_action_pressed(id: int) -> void:
+	if PlayerProfile.owns_trail(id):
+		PlayerProfile.equip_trail(id)
+	else:
+		PlayerProfile.buy_trail(id)
 	_refresh_all_rows()
 
 
@@ -115,6 +174,23 @@ func _on_coins_changed(balance: int) -> void:
 func _refresh_all_rows() -> void:
 	for id in _rows:
 		_refresh_row(_rows[id], id)
+	for id in _trail_rows:
+		_refresh_trail_row(_trail_rows[id], id)
+
+
+func _refresh_trail_row(row: Control, id: int) -> void:
+	var action := row.get_node("Action") as Button
+	var style := PlayerProfile.trail_by_id(id)
+
+	if PlayerProfile.equipped_trail == id:
+		action.text = "EQUIPPED"
+		action.disabled = true
+	elif PlayerProfile.owns_trail(id):
+		action.text = "EQUIP"
+		action.disabled = false
+	else:
+		action.text = "BUY  %d" % int(style["price"])
+		action.disabled = PlayerProfile.coins < int(style["price"])
 
 
 func _refresh_row(row: Control, id: int) -> void:

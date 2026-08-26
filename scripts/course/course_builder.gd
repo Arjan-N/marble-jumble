@@ -145,20 +145,16 @@ const ROUGH_UNTIL := 0.55 ## Rough canyon stone before here, smoother build afte
 
 const ROUGH_FRICTION := 0.55
 const SMOOTH_FRICTION := 0.25
-## Warmed further, toward the Home screen's terracotta trail colour. The old
-## value already dodged the "reads as grey/ice under ambient sky" problem
-## `SMOOTH_COLOUR`'s comment describes, but it was still muted enough to read
-## as flat brown rather than sunlit red-orange dirt once the sky and canyon
-## dressing turned more vivid around it.
-const ROUGH_COLOUR := Color(0.68, 0.42, 0.27)
-## Was a near-neutral (0.48, 0.50, 0.54). With default specular still on (see
-## `_build_surface`) and roughness at 0.9 rather than fully killed, a colour
-## this close to grey shows the sky's own blue rather than any tone of its
-## own — the same problem `slope_course.gd`'s SURFACE_SMOOTH had. Warmed to
-## read as pale stone instead of ice, and warmed again here to sandy tan
-## rather than beige-grey, matching the poured-stone colour in the Home
-## screen art.
-const SMOOTH_COLOUR := Color(0.70, 0.58, 0.42)
+## Warm sandstone, the rougher upper track. Pushed further from the smooth
+## section than before: the two surfaces carry different friction, and with the
+## banded shader flattening every gradient the colour step between them is now
+## the only cue that the ground under a marble has changed.
+const ROUGH_COLOUR := Color(0.74, 0.58, 0.42)
+## Pale poured stone — the bone-coloured deck the Home screen art's viaduct is
+## paved with. Was a near-neutral (0.48, 0.50, 0.54) two revisions ago; a colour
+## that close to grey shows the sky's own blue rather than any tone of its own,
+## the same problem `slope_course.gd`'s SURFACE_SMOOTH had.
+const SMOOTH_COLOUR := Color(0.78, 0.72, 0.60)
 
 ## Marbles below this are out of bounds. Must stay clear of the finish, which
 ## is the lowest point of the course. Tunable, per the spec.
@@ -179,20 +175,28 @@ const FALL_THRESHOLD_Y := -60.0
 ## than a perfectly smooth one.
 const DRESSING_RING_STEP := 6
 
-## Two bands rising from the collision wall's own top edge, stepping outward as
-## they climb — same idea as slope_course.gd's WALL_TIERS, sized down to two
-## bands. First point of each ring's dressing profile sits exactly on the
+## Bands rising from the collision wall's own top edge, stepping outward as they
+## climb. The first point of each ring's dressing profile sits exactly on the
 ## existing wall top, so there is no seam between collidable and cosmetic rock.
-## First render came back a near-vertical 10m slot with no sky visible over it
-## from the low camera — the opposite of the Home screen art, where the walls
-## step outward hard enough that sky and rim cacti stay in shot. Cut the added
-## height by nearly half and roughly tripled the outward step per tier so the
-## profile opens up rather than towering.
+##
+## Each entry is now a *step*, not a ramp: the profile emits a vertical face of
+## `height` and then a horizontal shelf of `outset`, where it used to emit one
+## diagonal between tier tops. That diagonal is why the first pass read as
+## smooth putty — the Home screen art's rock is built out of hard-edged
+## rectangular blocks with a flat top to each shelf catching the sun, and a
+## slope has no flat top to catch anything.
+##
+## Height stays modest and the outsets stay large, for the reason the two-tier
+## version recorded: an early 10m near-vertical version turned the course into a
+## slot with no sky over it. Four short steps that retreat 7m in total open the
+## walls outward as they rise, which is the shape in the art.
 const DRESSING_TIERS := [
-	{"height": 1.8, "outset": 1.0, "colour": Color(0.55, 0.28, 0.18)},
-	{"height": 2.4, "outset": 2.6, "colour": Color(0.74, 0.42, 0.24)},
+	{"height": 1.0, "outset": 1.2, "colour": Color(0.46, 0.17, 0.12)},
+	{"height": 1.2, "outset": 1.6, "colour": Color(0.66, 0.26, 0.14)},
+	{"height": 1.3, "outset": 2.0, "colour": Color(0.80, 0.36, 0.17)},
+	{"height": 1.2, "outset": 2.4, "colour": Color(0.88, 0.47, 0.24)},
 ]
-const DRESSING_RIM_COLOUR := Color(0.86, 0.62, 0.38)
+const DRESSING_RIM_COLOUR := Color(0.92, 0.62, 0.36)
 ## How much a band's colour may drift from its base, so the strata are not flat
 ## ribbons. Deterministic, like slope_course.gd's `_weathered` — a restart must
 ## rebuild the same course.
@@ -202,11 +206,97 @@ const DRESSING_COLOUR_VARIANCE := 0.10
 const CACTUS_SPACING := 9.0
 const CACTUS_COLOUR := Color(0.26, 0.42, 0.27)
 
-## Distant stepped hoodoos beyond the rim, the same silhouette the Home screen
-## backdrop recedes into.
-const MESA_SPACING := 24.0
-const MESA_COLOUR := Color(0.58, 0.30, 0.20)
-const MESA_RIM_COLOUR := Color(0.80, 0.50, 0.30)
+## Distant stepped buttes beyond the rim, the same silhouette the Home screen
+## backdrop recedes into. Pushed much further out and made much taller than the
+## first pass, where they sat 9-16m away and 12m high: at that size they were
+## indistinguishable from the canyon wall directly behind them and simply read
+## as more wall. The art's buttes are separated from the near rock by a visible
+## gulf of hazy air, and only distance produces that.
+const MESA_SPACING := 30.0
+const MESA_COLOUR := Color(0.62, 0.28, 0.18)
+const MESA_RIM_COLOUR := Color(0.84, 0.50, 0.28)
+
+# --- Painted look --------------------------------------------------------------
+
+## Everything in this course draws through one banded shader. See its own header
+## for why: the art is painted, and a smooth lambert gradient reads as plastic
+## no matter how the albedo is tuned.
+const ROCK_SHADER: Shader = preload("res://scripts/course/canyon_rock.gdshader")
+
+## Paving joints across the deck, in metres. The art's viaduct is laid in slabs
+## roughly a marble-and-a-half wide, and the lines between them are most of what
+## makes it read as a built road rather than a poured ribbon — they also give
+## speed something to register against, which a featureless surface does not.
+const SLAB_SPACING := 2.4
+const SLAB_JOINT_COLOUR := Color(0.44, 0.33, 0.25)
+
+## Timber kerb capping the track walls, as in the art, where a dark beam runs the
+## length of the deck and separates the pale paving from the drop. Visual only:
+## it sits outside the collision wall rather than inside it, so nothing a marble
+## can touch changes.
+const KERB_COLOUR := Color(0.34, 0.22, 0.15)
+const KERB_HEIGHT := 0.45
+const KERB_WIDTH := 0.4
+## The viaduct's own flank, below the kerb. Warm stone rather than timber: the
+## skirt is nearly three metres tall (wall top down past the deck underside), and
+## at that size the timber colour stopped reading as a beam and became a
+## chocolate wall running the length of the course, dark enough to pull the eye
+## off the track it was meant to frame. Only a thin band of that dark is wanted,
+## and the geometry here is not thin.
+const SKIRT_COLOUR := Color(0.64, 0.47, 0.34)
+
+# --- Viaduct -------------------------------------------------------------------
+##
+## Stretches where the canyon wall pulls away and the track crosses open air on
+## arched piers, as it does on the right-hand side of the Home screen art.
+##
+## This is the one thing in that image the course could not say at all. The
+## dressing walls used to run unbroken from start to finish, so the track was
+## always a trench cut through rock; the art's track is a *structure* standing in
+## a landscape, and you cannot read it as one while its edges are welded to the
+## cliff for the whole run. Two stretches rather than the whole course, because
+## the art has both — enclosed canyon on one side, open span on the other — and
+## alternating between them is what makes either one legible.
+##
+## Ranges are course ratios. The second deliberately contains the river gap
+## (`JUMP_GAP_RANGE`) and the bumper: the jump is the moment the floor is already
+## gone, so it is the moment where being able to see what is underneath pays.
+const VIADUCT_RANGES := [
+	Vector2(0.28, 0.45),
+	Vector2(0.72, 0.96),
+]
+## How far the canyon floor sits below the track through a viaduct stretch. Deep
+## enough that the piers read as tall, shallow enough that the floor stays inside
+## the frame from the race camera rather than falling out of the bottom of it.
+const VIADUCT_DROP := 15.0
+## Along-course spacing of the piers. Each pier carries an arch to its
+## neighbour, so this is also the arch span.
+const PIER_SPACING := 11.0
+const PIER_WIDTH := 1.7
+const PIER_COLOUR := Color(0.80, 0.72, 0.58)
+## Segments per arch. Six is enough that the span reads as a curve at the
+## distance the camera ever sees it from, and it stays a handful of boxes rather
+## than a mesh.
+const ARCH_SEGMENTS := 6
+const ARCH_RISE := 3.2
+const ARCH_THICKNESS := 0.55
+## The canyon floor far below the spans — dry riverbed, not shadow. The void it
+## replaces is what made the first viaduct sketch read as a hole in the world.
+const CANYON_FLOOR_COLOUR := Color(0.52, 0.28, 0.20)
+const CANYON_FLOOR_WIDTH := 130.0
+
+# --- Light ---------------------------------------------------------------------
+
+## The desert sky in the art is deeper and less hazy than the pool's shared one,
+## and — the part that matters most — its shadows are warm. See
+## `decorate_environment`.
+const SKY_TOP := Color(0.16, 0.38, 0.72)
+const SKY_HORIZON := Color(0.72, 0.66, 0.58)
+const AMBIENT_COLOUR := Color(0.88, 0.62, 0.52)
+const AMBIENT_ENERGY := 0.42
+const SUN_COLOUR := Color(1.0, 0.93, 0.80)
+const FOG_COLOUR := Color(0.86, 0.55, 0.36)
+const FOG_DENSITY := 0.0026
 
 ## A river crossing the gap. The first attempt was a flat plane far below —
 ## still read as a square hole with a blue floor, because there was 16m of
@@ -313,6 +403,8 @@ func build() -> void:
 	_add_bumper()
 	_add_river()
 
+	_build_deck_skirt()
+	_build_viaduct()
 	_build_canyon_dressing()
 	_build_mesas()
 	_build_cacti()
@@ -458,22 +550,21 @@ func _build_surface(from_index: int, to_index: int, friction: float, colour: Col
 			# still wide enough to carry a marble across.
 			if skip_floor and strip > 0 and strip < strips - 1:
 				continue
-			_add_quad(tool, here[strip], here[strip + 1], ahead[strip + 1], ahead[strip])
+			var u_here := float(i) * RING_SPACING
+			var u_ahead := float(i + 1) * RING_SPACING
+			_add_quad_uv(
+				tool,
+				here[strip], here[strip + 1], ahead[strip + 1], ahead[strip],
+				u_here, u_ahead, float(strip)
+			)
 
 	tool.generate_normals()
 	var mesh := tool.commit()
 
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.roughness = 0.9
-	material.metallic = 0.0
-	# Godot's default specular puts a soft sheen on every surface; against a
-	# blue sky that sheen reads as a cool highlight on what is meant to be
-	# rock. `slope_course.gd` disables this for the same reason.
-	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	# The ribbon is a single-sided surface and winding varies with the banking;
-	# for placeholder geometry, drawing both sides beats chasing normals.
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Slab joints run across the deck; see `SLAB_SPACING`. The walls and fillets
+	# get them too, which is right — the art paves the kerb line as well, and a
+	# joint that stops dead at the wall foot would draw attention to the seam.
+	var material := _rock_material(colour, SLAB_SPACING)
 
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
@@ -506,6 +597,27 @@ func _add_quad(tool: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3
 	tool.add_vertex(a)
 	tool.add_vertex(c)
 	tool.add_vertex(d)
+
+
+## As `_add_quad`, but carrying the along-course distance the banded shader
+## needs to place slab joints. `u` is metres down the course and `v` is the
+## strip index across the profile — only `u` is read, but a UV with a constant
+## second channel would collapse the whole deck onto one texture line if
+## anything ever samples it properly.
+func _add_quad_uv(
+	tool: SurfaceTool,
+	a: Vector3, b: Vector3, c: Vector3, d: Vector3,
+	u_near: float, u_far: float, v: float
+) -> void:
+	var uvs := [
+		Vector2(u_near, v), Vector2(u_near, v + 1.0),
+		Vector2(u_far, v + 1.0), Vector2(u_near, v),
+		Vector2(u_far, v + 1.0), Vector2(u_far, v),
+	]
+	var points := [a, b, c, a, c, d]
+	for i in points.size():
+		tool.set_uv(uvs[i])
+		tool.add_vertex(points[i])
 
 
 # --- Fixtures -----------------------------------------------------------------
@@ -761,21 +873,25 @@ func _build_dressing_side(side: float) -> void:
 	var i := 0
 	while i < _rings.size() - 1:
 		var next_i := mini(i + DRESSING_RING_STEP, _rings.size() - 1)
-		var here := _dressing_profile(_rings[i], i, side)
-		var ahead := _dressing_profile(_rings[next_i], next_i, side)
-		for band in here.size() - 1:
-			_add_dressing_quad(tool, here[band], here[band + 1], ahead[band + 1], ahead[band])
+		# Where the course is a viaduct the canyon wall is not there at all, so
+		# the strata simply stop. The cut end reads as the gorge opening out,
+		# which is what it is; the collision walls carry on regardless, so the
+		# track keeps its edges across the span.
+		if not _in_viaduct(_rings[i]["ratio"]) and not _in_viaduct(_rings[next_i]["ratio"]):
+			var here := _dressing_profile(_rings[i], i, side)
+			var ahead := _dressing_profile(_rings[next_i], next_i, side)
+			for band in here.size() - 1:
+				_add_dressing_quad(
+					tool, band, here[band], here[band + 1], ahead[band + 1], ahead[band]
+				)
 		i = next_i
 
 	tool.generate_normals()
 	var mesh := tool.commit()
 
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	material.roughness = 1.0
-	material.metallic = 0.0
-	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# White tint: the strata carry their colour per-vertex, and the shader
+	# multiplies the two.
+	var material := _rock_material(Color.WHITE)
 
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
@@ -826,13 +942,244 @@ func _dressing_weathered(base: Color, index: int) -> Color:
 	return base.lightened(absf(noise) * DRESSING_COLOUR_VARIANCE)
 
 
-func _add_dressing_quad(tool: SurfaceTool, a: Dictionary, b: Dictionary, c: Dictionary, d: Dictionary) -> void:
+## One band of the cliff face.
+##
+## `band` becomes the smooth group, which is what gives the strata their edges:
+## a vertical face and the shelf above it are different bands, so their normals
+## are never averaged together and the step between them stays hard — while
+## along the course, within one band, normals still blend and the wall reads as
+## continuous rock rather than as a run of separate facets. A single flat group
+## for the whole mesh did the first half and not the second, and turned the
+## walls into a field of visibly distinct triangles.
+func _add_dressing_quad(
+	tool: SurfaceTool, band: int, a: Dictionary, b: Dictionary, c: Dictionary, d: Dictionary
+) -> void:
+	tool.set_smooth_group(band)
 	for point: Dictionary in [a, b, c, a, c, d]:
 		tool.set_color(point["colour"])
 		tool.add_vertex(point["pos"])
+# --- Viaduct ------------------------------------------------------------------
 
 
-## Distant stepped hoodoos beyond the rim — the Home screen backdrop's receding
+func _in_viaduct(ratio: float) -> bool:
+	for span: Vector2 in VIADUCT_RANGES:
+		if _in_range(ratio, span):
+			return true
+	return false
+
+
+## Gives the track a visible thickness: an outer face down each side and a floor
+## underneath, closing the swept ribbon into a slab.
+##
+## The collision surface is a bare trough, open on the outside, so before this
+## the track had no underside at all — from the race camera it was a ribbon of
+## zero thickness with the world showing through beneath its own edge. That is
+## survivable when the ribbon is buried in rock for its whole length, and not at
+## all survivable once `VIADUCT_RANGES` lifts stretches of it into open air,
+## where the underside is exactly what the eye goes to.
+##
+## Visual only, and outside the collision surface in every direction, so nothing
+## a marble can reach moves.
+const DECK_THICKNESS := 0.55
+
+
+func _build_deck_skirt() -> void:
+	# Two ribbons, not one. The dark beam the art runs along the deck edge is a
+	# narrow band right under the paving; the rest of the flank below it is
+	# stone. Drawing the whole three-metre face in timber colour turned it into a
+	# chocolate wall — see `SKIRT_COLOUR`.
+	_add_skirt_ribbon(WALL_HEIGHT, WALL_HEIGHT - KERB_HEIGHT, KERB_COLOUR, false)
+	_add_skirt_ribbon(WALL_HEIGHT - KERB_HEIGHT, -DECK_THICKNESS, SKIRT_COLOUR, true)
+
+
+## One swept band down the outside of both track walls, optionally closed across
+## the underside.
+func _add_skirt_ribbon(y_top: float, y_bottom: float, colour: Color, floored: bool) -> void:
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	tool.set_smooth_group(-1)
+
+	for i in _rings.size() - 1:
+		# The gap is meant to be a gap. Skirting it would floor the jump over.
+		if _in_range(_rings[i]["ratio"], JUMP_GAP_RANGE):
+			continue
+
+		var here := _skirt_ring(_rings[i], y_top, y_bottom)
+		var ahead := _skirt_ring(_rings[i + 1], y_top, y_bottom)
+		var u_here := float(i) * RING_SPACING
+		var u_ahead := float(i + 1) * RING_SPACING
+
+		for edge in here.size() - 1:
+			# Edge 1 is the underside. Only the lowest band closes it, so the
+			# deck gets one bottom face rather than one per band.
+			if edge == 1 and not floored:
+				continue
+			_add_quad_uv(
+				tool,
+				here[edge], here[edge + 1], ahead[edge + 1], ahead[edge],
+				u_here, u_ahead, float(edge)
+			)
+
+	tool.generate_normals()
+	var visual := MeshInstance3D.new()
+	visual.mesh = tool.commit()
+	visual.material_override = _rock_material(colour, SLAB_SPACING)
+	add_child(visual)
+
+
+## Down the left outer face, across the underside, back up the right one. The
+## middle edge is only drawn for the band that owns the underside — see the loop
+## in `_add_skirt_ribbon`.
+func _skirt_ring(ring: Dictionary, y_top: float, y_bottom: float) -> Array:
+	var frame: Transform3D = ring["frame"]
+	var half_width: float = ring["half_width"]
+	var flat := half_width * FLAT_FRACTION
+	var out := flat + (half_width - flat + WALL_LEAN) + KERB_WIDTH
+
+	return [
+		frame * Vector3(-out, y_top, 0.0),
+		frame * Vector3(-out, y_bottom, 0.0),
+		frame * Vector3(out, y_bottom, 0.0),
+		frame * Vector3(out, y_top, 0.0),
+	]
+## Piers and arches under every `VIADUCT_RANGES` span, standing on a canyon floor
+## far below.
+func _build_viaduct() -> void:
+	for span: Vector2 in VIADUCT_RANGES:
+		_build_canyon_floor(span)
+
+		var from_offset := _offset_for_ratio(span.x)
+		var to_offset := _offset_for_ratio(span.y)
+		# Piers land on a whole number of spacings so the arches between them are
+		# all the same width; a remainder stretch at the end would give one arch
+		# a span unlike every other, and an arcade reads as an arcade because it
+		# repeats.
+		var span_length := to_offset - from_offset
+		var bays := maxi(int(span_length / PIER_SPACING), 1)
+		var bay_length := span_length / float(bays)
+
+		var previous := Vector3.ZERO
+		var have_previous := false
+		for bay in bays + 1:
+			var at := from_offset + float(bay) * bay_length
+			var top := _pier_top(at)
+			_add_pier(top)
+			if have_previous:
+				_add_arch(previous, top)
+			previous = top
+			have_previous = true
+
+
+## Where a pier meets the deck: clear of the track's own underside, on the
+## centreline, in world space. Piers are vertical in the world however the deck
+## above them is banked — a leaning pier reads as a mistake, not as camber.
+##
+## The clearance is what that verticality costs. A crown sitting only
+## `DECK_THICKNESS` under the centreline is under the *centre* of the deck and
+## not under its edges, and where the course banks hard the outer edge drops
+## below that plane — the crown then surfaces through the paving as a bright
+## wedge lying across the track, which is exactly what the first render showed.
+const PIER_CLEARANCE := 0.6
+
+
+func _pier_top(offset: float) -> Vector3:
+	var here := curve.sample_baked(clampf(offset, 0.0, _length))
+	return here - Vector3(0.0, DECK_THICKNESS + PIER_CLEARANCE, 0.0)
+
+
+func _add_pier(top: Vector3) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(PIER_WIDTH, VIADUCT_DROP, PIER_WIDTH)
+
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = _dressing_material(PIER_COLOUR)
+	visual.position = top - Vector3(0.0, VIADUCT_DROP * 0.5, 0.0)
+	add_child(visual)
+
+
+## A round arch between two pier tops, as a short chain of boxes.
+##
+## Springs from `ARCH_RISE` below the deck at each pier and crowns just under it
+## at mid-span, which is the way round an arch actually works: the piers carry
+## the load down and the arch closes the gap between them beneath the road.
+## Boxes rather than a swept mesh because at the distance the race camera ever
+## sees this from, six of them are indistinguishable from a curve.
+func _add_arch(from_top: Vector3, to_top: Vector3) -> void:
+	var material := _dressing_material(PIER_COLOUR.darkened(0.08))
+	var span := to_top - from_top
+	if span.length() < 0.01:
+		return
+
+	for segment in ARCH_SEGMENTS:
+		var a := _arch_point(from_top, span, float(segment) / float(ARCH_SEGMENTS))
+		var b := _arch_point(from_top, span, float(segment + 1) / float(ARCH_SEGMENTS))
+		var middle := (a + b) * 0.5
+		var chord := b - a
+
+		var mesh := BoxMesh.new()
+		# Slightly long, so consecutive segments overlap rather than leaving a
+		# hairline gap at every joint in the curve.
+		mesh.size = Vector3(ARCH_THICKNESS, ARCH_THICKNESS, chord.length() * 1.15)
+
+		var visual := MeshInstance3D.new()
+		visual.mesh = mesh
+		visual.material_override = material
+		visual.position = middle
+		visual.look_at_from_position(middle, middle + chord, Vector3.UP)
+		add_child(visual)
+
+
+func _arch_point(from_top: Vector3, span: Vector3, t: float) -> Vector3:
+	var along := from_top + span * t
+	# Full drop at the springing, none at the crown.
+	return along - Vector3(0.0, ARCH_RISE * (1.0 - sin(PI * t)), 0.0)
+
+
+## The dry canyon floor the piers stand on. Follows the course rather than being
+## one flat plane, because the course descends 30-odd metres and a level floor
+## would surface through the track before the span ended.
+func _build_canyon_floor(span: Vector2) -> void:
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var from_offset := _offset_for_ratio(span.x) - 8.0
+	var to_offset := _offset_for_ratio(span.y) + 8.0
+	var steps := maxi(int((to_offset - from_offset) / 4.0), 2)
+
+	for step in steps:
+		var a := from_offset + (to_offset - from_offset) * float(step) / float(steps)
+		var b := from_offset + (to_offset - from_offset) * float(step + 1) / float(steps)
+		var here := _floor_edges(a)
+		var ahead := _floor_edges(b)
+		_add_quad_uv(tool, here[0], here[1], ahead[1], ahead[0], a, b, 0.0)
+
+	tool.generate_normals()
+	var visual := MeshInstance3D.new()
+	visual.mesh = tool.commit()
+	visual.material_override = _dressing_material(CANYON_FLOOR_COLOUR)
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(visual)
+
+
+func _floor_edges(offset: float) -> Array:
+	var here := curve.sample_baked(clampf(offset, 0.0, _length))
+	var forward := _tangent_at(offset)
+	var across := forward.cross(Vector3.UP).normalized()
+	if across.is_zero_approx():
+		across = Vector3.RIGHT
+	var down := here - Vector3(0.0, VIADUCT_DROP, 0.0)
+	return [
+		down - across * (CANYON_FLOOR_WIDTH * 0.5),
+		down + across * (CANYON_FLOOR_WIDTH * 0.5),
+	]
+
+
+
+
+
+
+## Distant stepped buttes beyond the rim — the Home screen backdrop's receding
 ## red-rock towers, rebuilt as a few stacked boxes per marker.
 func _build_mesas() -> void:
 	var placed := 0.0
@@ -842,17 +1189,33 @@ func _build_mesas() -> void:
 		index += 1
 		var side := 1.0 if index % 2 == 0 else -1.0
 		var jitter := fmod(float(index) * 0.71, 1.0)
-		var distance := 9.0 + jitter * 7.0
-		var base_transform := _frame_at(placed).translated_local(Vector3(side * distance, -2.0, 0.0))
-		_add_mesa(base_transform, index)
+		# Was 9-16m, which put every butte *inside* the canyon wall: the dressing
+		# now steps 7m outward from a half-width of up to 4.5m, so anything
+		# closer than about 12m is buried in the cliff it is supposed to be seen
+		# beyond. At 34-70m they sit across the gorge with air in front of them,
+		# which with `FOG_DENSITY` is what makes them read as distant.
+		var distance := 34.0 + jitter * 36.0
+		var here := curve.sample_baked(clampf(placed, 0.0, _length))
+		var forward := _tangent_at(placed)
+		var across := forward.cross(Vector3.UP).normalized()
+		if across.is_zero_approx():
+			across = Vector3.RIGHT
+		# World-vertical, not frame-local. Placing these through `_frame_at`
+		# leaned them with the track's banking, and a leaning butte reads as a
+		# bug rather than as camber.
+		var base := here + across * (side * distance) - Vector3(0.0, 9.0, 0.0)
+		_add_mesa(Transform3D(Basis.IDENTITY, base), index)
 
 
 func _add_mesa(base_transform: Transform3D, index: int) -> void:
 	var height := 0.0
-	var width := 3.2 + fmod(float(index) * 0.53, 2.2)
+	# Scaled up with the distance. At the old 3-5m across and 12m tall, a butte
+	# 50m away is a pebble on the horizon; the art's towers subtend a good part
+	# of the sky.
+	var width := 9.0 + fmod(float(index) * 0.53, 6.0)
 
 	for t in 3:
-		var tier_height := (5.0 - float(t) * 1.1) + fmod(float(index + t) * 0.37, 1.5)
+		var tier_height := (11.0 - float(t) * 2.4) + fmod(float(index + t) * 0.37, 3.5)
 		var tier_width := width * (1.0 - float(t) * 0.22)
 		var colour := MESA_COLOUR.lightened(float(t) * 0.12 + fmod(float(index) * 0.05, 0.08))
 
@@ -889,6 +1252,11 @@ func _build_cacti() -> void:
 		var side := 1.0 if index % 2 == 0 else -1.0
 
 		var ratio := (placed - _race_start_offset) / _race_length
+
+		# Nothing to perch on where the wall has pulled away for a span.
+		if _in_viaduct(ratio):
+			continue
+
 		var half_width := _width_at(ratio)
 		var flat := half_width * FLAT_FRACTION
 		var rise := half_width - flat + WALL_LEAN
@@ -918,7 +1286,7 @@ func _add_cactus(cactus_transform: Transform3D, index: int) -> void:
 		_add_cactus_arm(root, Vector3(-0.26, trunk_height * 0.4, 0.0), trunk_height * 0.35, material)
 
 
-func _add_cactus_limb(root: Node3D, height: float, radius: float, material: StandardMaterial3D) -> void:
+func _add_cactus_limb(root: Node3D, height: float, radius: float, material: ShaderMaterial) -> void:
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius * 0.85
 	mesh.bottom_radius = radius
@@ -932,7 +1300,7 @@ func _add_cactus_limb(root: Node3D, height: float, radius: float, material: Stan
 	root.add_child(visual)
 
 
-func _add_cactus_arm(root: Node3D, base: Vector3, height: float, material: StandardMaterial3D) -> void:
+func _add_cactus_arm(root: Node3D, base: Vector3, height: float, material: ShaderMaterial) -> void:
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = 0.14
 	mesh.bottom_radius = 0.16
@@ -949,16 +1317,27 @@ func _add_cactus_arm(root: Node3D, base: Vector3, height: float, material: Stand
 	root.add_child(visual)
 
 
-## Rock is not plastic: fully rough, no metallic, specular killed outright — same
-## reasoning as `slope_course.gd`'s `_material`. Named distinctly because this
-## file already has an inline material builder inside `_build_surface`.
-func _dressing_material(colour: Color) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.roughness = 1.0
-	material.metallic = 0.0
-	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+## Every visible surface in the Canyon draws through `canyon_rock.gdshader`.
+##
+## `tint` multiplies the vertex colour, so the same material serves the strata
+## (which carry per-vertex colour) and the flat props (which do not, and whose
+## COLOR is white). `joint_spacing` of zero leaves rock unpaved.
+func _rock_material(colour: Color, joint_spacing := 0.0) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = ROCK_SHADER
+	material.set_shader_parameter("tint", colour)
+	material.set_shader_parameter("bands", 3)
+	material.set_shader_parameter("joint_spacing", joint_spacing)
+	material.set_shader_parameter("joint_tint", SLAB_JOINT_COLOUR)
 	return material
+
+
+## Kept as the name the mesas, cacti and props already call, now a thin wrapper.
+## Rock is not plastic, which the shader enforces for every surface at once
+## rather than three properties at a time — same reasoning as
+## `slope_course.gd`'s `_material`, arrived at from the other direction.
+func _dressing_material(colour: Color) -> ShaderMaterial:
+	return _rock_material(colour)
 
 
 func _add_box(
@@ -980,9 +1359,7 @@ func _add_box(
 
 	var mesh := BoxMesh.new()
 	mesh.size = size
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.roughness = 0.9
+	var material := _rock_material(colour)
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
 	visual.material_override = material
@@ -990,6 +1367,58 @@ func _add_box(
 
 	add_child(body)
 
+
+
+
+# --- Light --------------------------------------------------------------------
+
+
+## The Canyon's own desert light, over the pool's shared neutral sky.
+##
+## Three departures, and the middle one is the whole point:
+##
+## The sky goes deeper and less hazy at the top, which is what the art has above
+## the buttes and what makes the rock read as saturated rather than dusty.
+##
+## Ambient becomes a warm orange *colour* rather than the sky's own average. In
+## the art nothing in shadow is grey — a shadowed face is deep red-brown,
+## because the only thing lighting it is bounce off several hundred metres of
+## sunlit orange rock. Sky-sourced ambient gives the opposite: it fills shadow
+## with the blue overhead, and no amount of albedo tuning recovers from that,
+## because a shadowed surface shows ambient and nothing else. `canyon_rock.gdshader`
+## deliberately does not try to solve this itself for the same reason.
+##
+## Fog, thin and orange, so the buttes recede. Distance in that art is carried
+## almost entirely by haze rather than by size, and without it the far towers
+## sit in the same plane as the near wall however far away they are.
+func decorate_environment(environment: Environment, sun: DirectionalLight3D) -> void:
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = SKY_TOP
+	sky_material.sky_horizon_color = SKY_HORIZON
+	sky_material.ground_bottom_color = Color(0.30, 0.14, 0.10)
+	sky_material.ground_horizon_color = SKY_HORIZON
+
+	var sky := Sky.new()
+	sky.sky_material = sky_material
+	environment.sky = sky
+
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = AMBIENT_COLOUR
+	# Slightly under the shared 0.95. The shared value was raised specifically to
+	# keep marbles readable in wall shadow, and that requirement has not gone
+	# away — but a coloured ambient at full strength washes the banding out,
+	# and the bands are what make this course look like its own art. This is the
+	# lowest setting at which a marble in the deepest wall shadow still reads.
+	environment.ambient_light_energy = AMBIENT_ENERGY
+
+	environment.fog_enabled = true
+	environment.fog_light_color = FOG_COLOUR
+	environment.fog_density = FOG_DENSITY
+	# Sun-facing fog only would put the glow on one side of the course; the haze
+	# in the art is even, because it is dust rather than scattering.
+	environment.fog_sun_scatter = 0.0
+
+	sun.light_color = SUN_COLOUR
 
 # --- Queries ------------------------------------------------------------------
 

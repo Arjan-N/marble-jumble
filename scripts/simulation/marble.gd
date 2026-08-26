@@ -150,7 +150,7 @@ func _build(colour: Color) -> void:
 		# and on their own they are not enough under this renderer and camera —
 		# see the 2026-08-22 decision entry. The trail is the cue with real
 		# screen area, and it survives being buried in a pile-up.
-		_trail = MarbleTrail.create(colour, _tuning.radius)
+		_trail = MarbleTrail.create(colour, _tuning.radius, PlayerProfile.equipped_trail_data())
 		add_child(_trail)
 
 

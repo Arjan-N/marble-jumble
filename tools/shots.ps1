@@ -16,18 +16,23 @@
 .EXAMPLE
   tools\shots.ps1
   tools\shots.ps1 -Out C:\tmp\after -Stations 3,4
+  tools\shots.ps1 -Course canyon
 #>
 param(
     # Where the stills land. Wiped first, so point it somewhere disposable.
     [string]$Out = "$env:TEMP\marble-jumble-shots",
     # Which stations to render. Defaults to all seven sections.
     [int[]]$Stations = @(0, 1, 2, 3, 4, 5, 6),
+    # Which course to stand on. Matches a key in course_shot.gd's COURSES.
+    [string]$Course = "volcano",
     # Frames recorded per station. Only the last is kept — the earlier ones are
     # the pulsing plume light and anything else animated settling down.
     [int]$Frames = 8
 )
 
 $ErrorActionPreference = 'Stop'
+
+$env:MJ_COURSE = $Course
 
 $godot = (Get-Command Godot_v4.7.2-stable_win64_console.exe -ErrorAction SilentlyContinue).Source
 if (-not $godot) { $godot = (Get-Command godot -ErrorAction SilentlyContinue).Source }
@@ -43,8 +48,16 @@ foreach ($station in $Stations) {
     New-Item -ItemType Directory -Force $scratch | Out-Null
 
     $env:MJ_STATION = "$station"
+    # `2>&1` on a native exe wraps every stderr line in an ErrorRecord, and under
+    # `$ErrorActionPreference = 'Stop'` the first one aborts the script. Godot
+    # writes texture-leak warnings to stderr as it exits, so a run that rendered
+    # every frame correctly still killed the sweep. Only the *parse* of the log
+    # decides success here, which is what the Select-String below is for.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $log = & $godot --path $project res://tools/course_shot.tscn `
         --fixed-fps 60 --write-movie (Join-Path $scratch "f.png") --quit-after $Frames 2>&1
+    $ErrorActionPreference = $previous
 
     $errors = $log | Select-String "SCRIPT ERROR|Parse Error"
     if ($errors) {
@@ -65,4 +78,5 @@ foreach ($station in $Stations) {
 }
 
 Remove-Item Env:\MJ_STATION -ErrorAction SilentlyContinue
+Remove-Item Env:\MJ_COURSE -ErrorAction SilentlyContinue
 Write-Host "`nStills in $Out"
