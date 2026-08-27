@@ -219,8 +219,8 @@ const BRAKE_LENGTH := 7.0
 const BRAKE_SPEED := 1.9
 
 ## Casting Pit: the one hole. Ramp-then-gap with a boost in front of it, the
-## recipe `JungleCourse`, `VolcanoCourse` and `SkyRuinsCourse` all had to arrive
-## at before a gap was survivable rather than a filter — see `BoostPad`'s header
+## recipe both `JungleCourse` and `VolcanoCourse` had to arrive at before a gap
+## was survivable rather than a filter — see `BoostPad`'s header
 ## for why the boost is what makes the gap sizeable at all.
 const KICKER_AT := 0.815
 const KICKER_LENGTH := 6.0
@@ -251,8 +251,8 @@ const GANTRY_COLOUR := Color(0.44, 0.45, 0.48)
 const GLOW_COLOUR := Color(1.0, 0.55, 0.18, 0.5)
 const FINISH_COLOUR := Color(0.92, 0.86, 0.42)
 ## How far below the plate the dull orange floor-glow plane sits. Same
-## relationship `VolcanoCourse.LAVA_BELOW` and `SkyRuinsCourse.VOID_BELOW` have
-## to their own drops: purely visual, since anything that gets there is already
+## relationship `VolcanoCourse.LAVA_BELOW` has to its own drop: purely visual,
+## since anything that gets there is already
 ## eliminated by `fall_threshold_y`.
 const GLOW_BELOW := 22.0
 
@@ -334,7 +334,7 @@ func _build_plate() -> void:
 
 
 ## The plate split into stretches of constant surface with the Casting Pit's gap
-## cut out — `SkyRuinsCourse._runs` unchanged bar the numbers.
+## cut out.
 func _runs() -> Array:
 	var cuts := [-RAMP_LENGTH, LENGTH + RUNOFF_LENGTH]
 	for entry: Array in SURFACES:

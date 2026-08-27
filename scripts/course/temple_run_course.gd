@@ -11,16 +11,16 @@ extends Course
 ## past the ridge purely so the frame is bounded by something.
 ##
 ## Geometry follows `GlacierFaultCourse` rather than the swept
-## quadratic-shoulder shape `sky_ruins_course.gd`/`course_builder.gd` use: flat
-## planes at fixed, stated sizes, because that formula has no natural sense of
+## quadratic-shoulder shape `course_builder.gd` uses: flat planes at fixed,
+## stated sizes, because that formula has no natural sense of
 ## scale and produced a thirty-metre wall the last time a new course reached
 ## for it (see `[[marble-jumble-course-geometry-use-planes]]`). Every height
 ## here is a number a marble diameter can be held against.
 ##
 ## Three beats: Plaza | Serpent Bends | Temple Approach. One obstacle, no jump,
 ## no spawner — a first pass that races cleanly is worth more than a first pass
-## with six features, which is the lesson `SkyRuinsCourse` is still sitting in
-## the pool's comment block for.
+## with six features, which is the lesson a six-feature course that never got
+## past its own spiral stall (and was cut) taught the hard way.
 
 # --- Shape --------------------------------------------------------------------
 

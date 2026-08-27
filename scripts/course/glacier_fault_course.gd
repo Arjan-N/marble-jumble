@@ -4,8 +4,8 @@ extends Course
 ## Glacier Fault — a stone gate frozen into a glacier wall.
 ##
 ## First pass tried to contain its one turn by steepening the swept
-## quadratic-shoulder shape `course_builder.gd`/`sky_ruins_course.gd` use for
-## their dish floor, and it went wrong two ways: the shoulder curve has no
+## quadratic-shoulder shape `course_builder.gd` uses for its dish floor, and it
+## went wrong two ways: the shoulder curve has no
 ## natural sense of scale and produced a wall tens of metres tall before being
 ## caught, and even scaled down the course played as too complex and blocked
 ## the camera's view of the track. This version is deliberately plain: a flat
@@ -27,10 +27,9 @@ const BEND_START := 0.28
 const BEND_END := 0.60
 
 ## Gentle throughout — this course's whole point is to be simple and to work,
-## not to be fast. Held flat through the Bend for the same reason
-## `SkyRuinsCourse` holds its own turn back: extra speed into a turn is what
-## throws marbles at a wall hard enough to cause trouble, not what carries
-## them through it.
+## not to be fast. Held flat through the Bend deliberately: extra speed into a
+## turn is what throws marbles at a wall hard enough to cause trouble, not what
+## carries them through it.
 const PITCH := [
 	[0.14, 6.0],   ## Frozen Entry: wide, barely descending.
 	[BEND_START, 7.0],
@@ -88,9 +87,8 @@ const RUN_OVERLAP := 0.35
 
 # --- Surfaces -----------------------------------------------------------------
 
-## Friction low throughout (ice), raised slightly in the Bend — the one lever
-## this course has that a wall-less course doesn't, per
-## `[[marble-jumble-sky-ruins-course-in-progress]]`'s own postmortem.
+## Friction low throughout (ice), raised slightly in the Bend — a walled bend
+## can lean on friction to settle marbles in a way a wall-less one cannot.
 const SURFACE_ENTRY := {"friction": 0.20, "colour": Color(0.80, 0.88, 0.94)}
 const SURFACE_BEND := {"friction": 0.24, "colour": Color(0.72, 0.83, 0.92)}
 const SURFACE_SPRINT := {"friction": 0.14, "colour": Color(0.86, 0.93, 0.98)}

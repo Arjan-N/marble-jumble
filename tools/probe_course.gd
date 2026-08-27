@@ -9,8 +9,8 @@ extends Node3D
 ##     MJ_COURSE=temple godot --headless --path . res://tools/probe_course.tscn \
 ##       --fixed-fps 60 --disable-render-loop --quit-after 3600
 ##
-## A **scene**, not a `--script` SceneTree, unlike `probe_sky_ruins.gd` and
-## `probe_glacier_fault.gd`. Those two cannot run at all in this environment:
+## A **scene**, not a `--script` SceneTree, unlike `probe_glacier_fault.gd` and
+## the other one-off `--script` probes. Those cannot run at all in this environment:
 ## `--headless --script` compiles the script's dependencies before the autoloads
 ## exist, so `marble.gd`'s reference to `PlayerProfile` fails to resolve and the
 ## whole probe dies before it builds anything. Running the same logic as a scene

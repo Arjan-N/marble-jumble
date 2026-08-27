@@ -98,19 +98,14 @@ const COURSE_POOL: Array[GDScript] = [
 	preload("res://scripts/course/jungle_course.gd"),
 	preload("res://scripts/course/orbital_course.gd"),
 	preload("res://scripts/course/volcano_course.gd"),
-	# Sky Ruins is written but not race-ready: `tools/probe_sky_ruins.gd` still
-	# reproduces its documented spiral stall (8/12 finish, the rest stick at
-	# fraction ~0.46-0.50 permanently). Left out of the pool until that's
-	# fixed — see the Sky Ruins course-in-progress notes for where it stands.
-	# preload("res://scripts/course/sky_ruins_course.gd"),
 	preload("res://scripts/course/foundry_course.gd"),
 	# Glacier Fault is written (geometry + friction pass, no ice shader or
 	# painted backdrop yet) but not probe-verified: `tools/probe_glacier_fault.gd`
 	# currently can't run in this environment (`godot --headless --script`
 	# fails to resolve the `PlayerProfile` autoload before compiling
-	# `marble.gd` — reproduces identically on the pre-existing
-	# `tools/probe_sky_ruins.gd`, so it's an environment issue, not something
-	# this course caused). `tools/course_shot.gd` (MJ_COURSE=glacier) confirms
+	# `marble.gd` — reproduced identically on every other `--script` probe, so
+	# it's an environment issue, not something this course caused; use
+	# `tools/probe_course.tscn` instead). `tools/course_shot.gd` (MJ_COURSE=glacier) confirms
 	# the geometry builds and reads correctly, including Fissure Bend's walled
 	# containment, but no field of real marbles has been run through it yet.
 	# Leave commented out until the probe issue is fixed and a clean run
