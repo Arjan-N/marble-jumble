@@ -268,6 +268,7 @@ func _ready() -> void:
 	_player_skin = PlayerProfile.equipped_skin_data()
 	_tuning = MarbleTuning.new()
 	_setup_environment()
+	_setup_presentation()
 	_start_race()
 
 
@@ -1259,6 +1260,17 @@ func _apply_default_environment() -> void:
 	_sun.light_color = Color(1.0, 1.0, 1.0)
 
 
+## The furniture that outlives any one race: the HUD, the sound bank, the cut
+## marker and the player's rank tag.
+##
+## Built once, from `_ready`, and deliberately *not* from `_start_race`.
+## `_apply_default_environment` runs before every race and this block used to
+## sit on the end of it, so each new round built a second `RaceHUD` over the
+## first: the finished round's result line and its full standings column stayed
+## on screen, frozen, on top of the new race's own HUD, and the two sets of text
+## overlapped into something unreadable. Nothing here is per-race state —
+## `_teardown_race` resets what needs resetting.
+func _setup_presentation() -> void:
 	_hud = RaceHUD.create()
 	add_child(_hud)
 	_hud.restart_requested.connect(_restart)
