@@ -98,6 +98,14 @@ var _coins_label: Label
 var _coin_layer: Control
 var _reward_label: Label
 
+## The screen's own voice. The race's `SoundManager` lives on `race_manager`
+## and dies with the race scene on the way to the shop, so the results screen
+## carries one rather than borrowing it.
+var _sound: SoundManager
+## How many coins have landed, counted as they arrive so the ding run rises in
+## the order the player hears them.
+var _coins_landed := 0
+
 var _sequence: Tween
 var _revealed: Array[Control] = []
 var _finished := false
@@ -126,6 +134,9 @@ func _build() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_STOP
 	_root.gui_input.connect(_on_root_input)
 	add_child(_root)
+
+	_sound = SoundManager.create()
+	add_child(_sound)
 
 	_build_dim()
 	_build_coin_pill()
@@ -886,8 +897,16 @@ func _fly_coin(origin: Vector2, target: Vector2, side: float, delay: float) -> v
 		1.0,
 		COIN_FLIGHT
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_callback(_bump_coin_pill)
+	tween.tween_callback(_land_coin)
 	tween.tween_callback(coin.queue_free)
+
+
+## A coin arriving: the pill kicks and a ding sounds, one step up the run each
+## time, so the payout is heard as well as seen.
+func _land_coin() -> void:
+	_bump_coin_pill()
+	_sound.play_coin(_coins_landed)
+	_coins_landed += 1
 
 
 ## A small kick on the counter as each coin lands, so the pill acknowledges
