@@ -92,6 +92,10 @@ static func _maps_for(finish: String, skin: Dictionary) -> Dictionary:
 			maps["emission"] = _texture(magma[1])
 		"chrome":
 			maps["albedo"] = _texture(_paint_chrome(skin))
+		"swirl":
+			var swirl := _paint_swirl(skin)
+			maps["albedo"] = _texture(swirl[0])
+			maps["emission"] = _texture(swirl[1])
 		"stormcell":
 			var storm := _paint_stormcell(skin)
 			maps["albedo"] = _texture(storm[0])
@@ -427,6 +431,83 @@ static func _paint_chrome(skin: Dictionary) -> Image:
 				clampf(colour.b + grain, 0.0, 1.0)
 			))
 	return image
+
+
+## The marble on the app icon: a deep blue glass ball with hot orange-and-gold
+## ribbons wrung through it, dusted with a few gold motes.
+##
+## Returns [albedo, emission]. The ribbons are latitude bands — hence continuous
+## across the seam — pushed around by two noise fields at different scales, so
+## they wander and pinch the way poured colour does instead of striping the ball
+## evenly. Where the band value lands then walks a ramp out of the navy
+## `backdrop` and back into it: cobalt, a bright azure rim, orange, gold at the
+## ribbon's centre, and back down the other side.
+##
+## The icon's ball is also *bright* — lit hard, with the gold nearly glowing —
+## and a painted albedo alone cannot say that under the canyon's ambient. So
+## emission is taken from the albedo's own luminance: the navy and the cobalt
+## emit nothing, the azure rim and the ribbons carry the glow.
+static func _paint_swirl(skin: Dictionary) -> Array:
+	var albedo := _blank()
+	var emission := _blank()
+	var deep := _backdrop(skin, Color(0.035, 0.09, 0.36))
+	var ramp: Array = skin.get("ribbon", [
+		Color(0.11, 0.33, 0.88),
+		Color(0.42, 0.72, 1.0),
+		Color(0.96, 0.45, 0.05),
+		Color(1.0, 0.83, 0.26),
+	])
+	var cobalt: Color = ramp[0]
+	var azure: Color = ramp[1]
+	var orange: Color = ramp[2]
+	var gold: Color = ramp[3]
+
+	# Broad sweep and a finer wobble on top of it, so the ribbons have a wrung
+	# edge rather than one smooth S.
+	var sweep := _noise(1489, 0.26, 2)
+	var wobble := _noise(2609, 0.9, 2)
+	var motes := _noise(6733, 6.0, 1)
+	## How many ribbons wrap the ball before the warp gets hold of them.
+	const BANDS := 0.55
+
+	for y in MAP_HEIGHT:
+		var v := (float(y) + 0.5) / MAP_HEIGHT
+		for x in MAP_WIDTH:
+			var u := (float(x) + 0.5) / MAP_WIDTH
+			var dir := _direction(u, v)
+
+			var phase := dir.y * 1.9
+			phase += sweep.get_noise_3dv(dir) * 1.7
+			phase += wobble.get_noise_3dv(dir * 1.7) * 0.28
+			var s := 0.5 + 0.5 * sin(phase * TAU * BANDS)
+
+			# Sequential lerps up the ramp: each stop takes over from the one
+			# before it, and both ends land back on `deep` so the band is
+			# continuous where sin wraps.
+			var colour := deep
+			colour = colour.lerp(cobalt, smoothstep(0.00, 0.12, s))
+			colour = colour.lerp(azure, smoothstep(0.34, 0.44, s))
+			colour = colour.lerp(orange, smoothstep(0.46, 0.54, s))
+			colour = colour.lerp(gold, smoothstep(0.56, 0.66, s))
+			colour = colour.lerp(orange, smoothstep(0.68, 0.76, s))
+			colour = colour.lerp(cobalt, smoothstep(0.78, 0.88, s))
+			colour = colour.lerp(deep, smoothstep(0.96, 1.00, s))
+
+			# The little suspended bubbles, as sparse peaks of a high-frequency
+			# field — the same trick the galaxy's stars use, for the same reason.
+			var mote := motes.get_noise_3dv(dir)
+			var speck := 0.0
+			if mote > 0.86:
+				speck = smoothstep(0.86, 0.96, mote)
+				colour = colour.lerp(Color(1.0, 0.88, 0.55), speck * 0.55)
+
+			var lum := colour.r * 0.3 + colour.g * 0.6 + colour.b * 0.1
+			var glow := colour * (smoothstep(0.35, 0.85, lum) * 0.5)
+			glow += Color(1.0, 0.88, 0.55) * (speck * 0.3)
+
+			albedo.set_pixel(x, y, colour)
+			emission.set_pixel(x, y, glow.clamp())
+	return [albedo, emission]
 
 
 # --- Shop swatch --------------------------------------------------------------

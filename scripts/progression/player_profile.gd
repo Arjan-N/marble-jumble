@@ -122,6 +122,29 @@ const SKINS := [
 		"roughness": 0.08,
 		"price": 350,
 	},
+	{
+		"id": 12,
+		"name": "Jumble",
+		# The marble on the app icon. It reads mostly blue, so that is what the
+		# HUD swatch and the trail — both flat single colours — are drawn in.
+		"colour": Color(0.22, 0.46, 0.96),
+		"backdrop": Color(0.035, 0.09, 0.36),
+		"finish": "swirl",
+		# The ramp `_paint_swirl` walks out of the `backdrop` navy and back into
+		# it: cobalt, the bright azure rim where blue meets the ribbon, orange,
+		# and gold along the ribbon's centre.
+		"ribbon": [
+			Color(0.11, 0.33, 0.88),
+			Color(0.42, 0.72, 1.0),
+			Color(0.96, 0.45, 0.05),
+			Color(1.0, 0.83, 0.26),
+		],
+		# Polished glass. The icon's ball is lit hard enough to blow a white
+		# highlight, and the emission map carries the rest of that brightness.
+		"metallic": 0.1,
+		"roughness": 0.07,
+		"price": 450,
+	},
 ]
 
 ## Trail cosmetics: what the ribbon behind the player's marble looks like
