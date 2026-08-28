@@ -33,7 +33,15 @@ extends Course
 
 const LENGTH := 205.0
 const RAMP_LENGTH := 14.0
-const RUNOFF_LENGTH := 8.0
+## The run-out past the line, where the field actually comes to rest now.
+##
+## Was 8 metres, which was only ever enough to reach a wall: a marble crossed,
+## rolled for a moment and was stopped. `FinishZone` ramps damping across this
+## distance instead, so it has to be long enough for that ramp to do the work —
+## the marble slows because the runoff slows it, not because something is in the
+## way. `CoursePath` also eases the descent off across it (see `RUNOFF_FLATTEN`),
+## so the far end is near level.
+const RUNOFF_LENGTH := 30.0
 
 ## Section boundaries, as fractions of `LENGTH`. Named so every other table in
 ## this file can be read against the same seven beats the issue describes.
@@ -747,9 +755,14 @@ func _build_finish_line() -> void:
 	visual.transform = _frame_at(LENGTH).translated_local(Vector3(0.0, 0.04, 0.0))
 	add_child(visual)
 
+	# The kerb closing the run-out. Was a 2.4m wall six metres past the line, and
+	# it was what actually stopped a race: cross, roll, hit wall. `FinishZone`
+	# has taken nearly all of a finisher's speed by the time it reaches this, so
+	# it catches a slow roll rather than ending a race — and it is low enough not
+	# to stand up in front of the field the camera is watching arrive.
 	_add_box(
-		_frame_at(LENGTH + 6.0).translated_local(Vector3(0.0, 1.2, 0.0)),
-		Vector3(width, 2.4, 0.7),
+		_frame_at(LENGTH + RUNOFF_LENGTH - 1.2).translated_local(Vector3(0.0, 0.35, 0.0)),
+		Vector3(width, 0.7, 0.6),
 		ROCK_COLOUR.darkened(0.3),
 	)
 
@@ -846,6 +859,10 @@ func fall_threshold_y() -> float:
 
 func finish_width() -> float:
 	return _half_width_at(LENGTH) * 2.0
+
+
+func finish_runoff() -> float:
+	return RUNOFF_LENGTH
 
 
 func start_width() -> float:

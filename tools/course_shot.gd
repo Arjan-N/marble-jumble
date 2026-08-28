@@ -30,6 +30,7 @@ const COURSES := {
 	"slope": preload("res://scripts/course/slope_course.gd"),
 	"glacier": preload("res://scripts/course/glacier_fault_course.gd"),
 	"temple": preload("res://scripts/course/temple_run_course.gd"),
+	"river": preload("res://scripts/course/jungle_river_course.gd"),
 }
 
 ## Where along the course to stand, one per section of Volcano Run. Pick one
@@ -49,6 +50,17 @@ const PITCH := deg_to_rad(32.0)
 const DISTANCE := 30.0
 const FOV := 26.0
 
+
+## Rig overrides, in degrees and metres: `MJ_PITCH`, `MJ_DISTANCE`, `MJ_FOV`.
+##
+## The race rig is locked, so these are not for reframing the game — they are for
+## answering questions the locked frame cannot, like what shape a course actually
+## is out past the edges of the shot. Unset, every one of them leaves `Mode.LOW`
+## exactly as it races.
+static func _rig(name: String, fallback: float) -> float:
+	var raw := OS.get_environment(name)
+	return raw.to_float() if raw.is_valid_float() else fallback
+
 var _course: Course
 var _camera: Camera3D
 var _marbles: Array[Node3D] = []
@@ -59,15 +71,31 @@ func _ready() -> void:
 	add_child(_course)
 	_course.build()
 
+	# The finish dressing is hung off `FinishZone`, not built by `build`, so a
+	# course photographed without one has no finish in it — which is the one
+	# stretch this tool is most often pointed at. Nothing else about the zone
+	# does anything here: it has no field registered, so its trigger and its
+	# slowdown ramp have nothing to act on.
+	var finish := FinishZone.create(_course)
+	_course.add_child(finish)
+
 	_setup_environment()
 
 	_camera = Camera3D.new()
 	_camera.keep_aspect = Camera3D.KEEP_WIDTH
-	_camera.fov = FOV
+	_camera.fov = _rig("MJ_FOV", FOV)
 	add_child(_camera)
 	_camera.current = true
 
-	for i in 6:
+	# `MJ_BARE=1` renders the environment with nothing in it. It exists for the
+	# grounding test in the Jungle River brief — "with no UI, no marble and no
+	# debug elements, does the frame still read as an environment containing a
+	# racing route, or as a floating track with decoration around it?" — which is
+	# a question the stand-in marbles quietly answer for you, because six spheres
+	# sitting on a surface are themselves a cue that the surface is ground.
+	var bare := OS.get_environment("MJ_BARE") == "1"
+
+	for i in (0 if bare else 6):
 		var ball := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
 		sphere.radius = 0.45
@@ -82,7 +110,7 @@ func _ready() -> void:
 		add_child(ball)
 		_marbles.append(ball)
 
-	_move_to(_requested_station())
+	_move_to_fraction(_requested_fraction())
 
 
 func _requested_course() -> GDScript:
@@ -96,6 +124,26 @@ func _requested_course() -> GDScript:
 func _requested_station() -> int:
 	var raw := OS.get_environment("MJ_STATION")
 	return clampi(int(raw) if raw.is_valid_int() else 0, 0, STATIONS.size() - 1)
+
+
+## `MJ_AT` overrides `MJ_STATION` with a raw fraction along the course, 0..1.
+##
+## A fraction of the *baked curve*, which is what `STATIONS` holds too — so it
+## includes the starting ramp and the run-out and does not line up with the
+## `[[fraction, ...]]` profiles a course is authored in. On `FoundryCourse` the
+## curve is 384m against a 340m course, so a beat authored at 0.87 is at roughly
+## 0.81 here.
+##
+## `STATIONS` is a fixed list sized to Volcano Run's sections, and every course
+## added since has had beats that fall between two of them — there was no index
+## that stood on `FoundryCourse`'s Turn Yard at all. Keeping the list as the
+## default and letting a fraction override it means the existing shot runs still
+## frame what they framed.
+func _requested_fraction() -> float:
+	var raw := OS.get_environment("MJ_AT")
+	if raw.is_valid_float():
+		return clampf(raw.to_float(), 0.0, 1.0)
+	return STATIONS[_requested_station()]
 
 
 ## Copied from `race_manager.gd`'s `_setup_environment`, minus the HUD, sound
@@ -130,9 +178,9 @@ func _setup_environment() -> void:
 	_course.decorate_environment(environment, sun)
 
 
-func _move_to(station: int) -> void:
+func _move_to_fraction(fraction: float) -> void:
 	var length := _course.curve.get_baked_length()
-	var at := length * float(STATIONS[station])
+	var at := length * fraction
 	var aim := _course.curve.sample_baked(at)
 	var ahead := _course.curve.sample_baked(minf(at + 2.0, length))
 	var behind := _course.curve.sample_baked(maxf(at - 2.0, 0.0))
@@ -141,11 +189,13 @@ func _move_to(station: int) -> void:
 	tangent.y = 0.0
 	tangent = tangent.normalized()
 
+	var pitch := deg_to_rad(_rig("MJ_PITCH", rad_to_deg(PITCH)))
+	var distance := _rig("MJ_DISTANCE", DISTANCE)
 	_camera.global_position = (
-		aim + tangent * (DISTANCE * cos(PITCH)) + Vector3.UP * (DISTANCE * sin(PITCH))
+		aim + tangent * (distance * cos(pitch)) + Vector3.UP * (distance * sin(pitch))
 	)
 	_camera.look_at(aim, Vector3.UP)
-	print("station %d, ratio %.2f" % [station, STATIONS[station]])
+	print("ratio %.3f" % [fraction])
 
 	var across := tangent.cross(Vector3.UP)
 	for i in _marbles.size():

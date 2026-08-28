@@ -136,12 +136,39 @@ const LOW_DISTANCE_FAST := 38.0
 const LOW_FOV := 26.0
 const LOW_LEAD := 4.0
 
+# --- Finish spectating ---------------------------------------------------------
+
+## Where the camera goes once the player's own run is over.
+##
+## Their marble stops being the right subject at that moment: it is parked in the
+## runoff and the race is still happening behind it, and if they fell it is not
+## even visible. What is worth watching is the finish itself — the marbles still
+## arriving, and the order building up in the runoff — so the rig re-aims at a
+## fixed point in the finish area and stays there.
+##
+## Deliberately reuses `Mode.LOW`'s own geometry (looks back up-course, sits
+## down-course of its focus) rather than inventing a second rig: the frame the
+## player has been watching all race stays recognisable, it just stops moving.
+## The transition is nothing but a change of `desired`/`aim`, so the existing
+## position and aim smoothing carries the camera over rather than cutting.
+const FINISH_PITCH := deg_to_rad(30.0)
+## Further back than `LOW_DISTANCE`, because the shot now has to hold the line
+## *and* the marbles still approaching it, not just one marble.
+const FINISH_DISTANCE := 40.0
+const FINISH_FOV := 30.0
+
 var target: Marble
 ## Optional, and only `Mode.OVERHEAD` uses it. Without it that mode falls back
 ## to steering by the marble's own velocity, which is what the first render did
 ## and it swung the track diagonally across the frame.
 var course: Course
 var mode: Mode = DEFAULT_MODE
+
+## Non-empty once `watch_finish` has been called: the point to aim at and the
+## direction the course runs there.
+var _finish_focus := Vector3.ZERO
+var _finish_forward := Vector3.FORWARD
+var _watching_finish := false
 
 var _aim := Vector3.ZERO
 var _speed := 0.0
@@ -181,6 +208,10 @@ func set_mode(value: Mode) -> void:
 			keep_aspect = KEEP_WIDTH
 			fov = LOW_FOV
 
+	# The debug mode cycle (C) must not undo the wider finish lens mid-spectate.
+	if _watching_finish:
+		fov = FINISH_FOV
+
 
 func cycle_mode() -> void:
 	match mode:
@@ -203,7 +234,30 @@ func mode_name() -> String:
 	return ""
 
 
+## Stop following the player and settle onto the finish area.
+##
+## `focus` is a point a little way into the runoff and `forward` is the direction
+## the course runs there — both from `FinishZone`, which is the only thing that
+## knows where its own holding area is. Called once, when the player's run ends;
+## the rig then sweeps over under its normal smoothing rather than cutting, which
+## is why nothing here touches `_initialised`.
+func watch_finish(focus: Vector3, forward: Vector3) -> void:
+	_finish_focus = focus
+	_finish_forward = forward.normalized() if not forward.is_zero_approx() else Vector3.FORWARD
+	if _watching_finish:
+		return
+	_watching_finish = true
+	# The wider lens is part of holding both the line and the approach; changed
+	# once rather than lerped, because `fov` is not interpolated anywhere else
+	# here and a zoom would read as a second camera move on top of the first.
+	fov = FINISH_FOV
+
+
 func _physics_process(delta: float) -> void:
+	if _watching_finish:
+		_update_finish_view(delta)
+		return
+
 	if target == null or not is_instance_valid(target):
 		return
 
@@ -301,5 +355,27 @@ func _course_lead(from: Vector3, lead_metres: float) -> Dictionary:
 	return {"position": course.curve.sample_baked(ahead), "tangent": tangent}
 
 
+## The static shot over the finish. Same construction as `Mode.LOW`'s — the rig
+## sits down-course of its focus and looks back up the track, so marbles still
+## racing come at the lens — but with a fixed focus instead of one riding ahead
+## of a marble.
+func _update_finish_view(delta: float) -> void:
+	var desired := _finish_focus
+	desired += _finish_forward * (FINISH_DISTANCE * cos(FINISH_PITCH))
+	desired.y += FINISH_DISTANCE * sin(FINISH_PITCH)
+
+	if not _initialised:
+		_initialised = true
+		global_position = desired
+		_aim = _finish_focus
+	else:
+		global_position = global_position.lerp(desired, 1.0 - exp(-POSITION_SMOOTHING * delta))
+		_aim = _aim.lerp(_finish_focus, 1.0 - exp(-AIM_SMOOTHING * delta))
+
+	look_at(_aim, Vector3.UP)
+
+
 func reset() -> void:
 	_initialised = false
+	_watching_finish = false
+	set_mode(mode)

@@ -17,6 +17,7 @@ const SWATCH_PX := 48
 var _coins_label: Label
 var _rows: Dictionary = {} ## skin id -> row Control, so a purchase can refresh just that row.
 var _trail_rows: Dictionary = {} ## trail id -> row Control.
+var _finish_rows: Dictionary = {} ## finish effect id -> row Control.
 
 
 func _ready() -> void:
@@ -68,6 +69,15 @@ func _ready() -> void:
 		var row := _build_trail_row(style)
 		_trail_rows[style["id"]] = row
 		trail_list.add_child(row)
+
+	sections.add_child(_section_label("FINISH EFFECTS"))
+	var finish_list := VBoxContainer.new()
+	finish_list.add_theme_constant_override("separation", 8)
+	sections.add_child(finish_list)
+	for style in PlayerProfile.FINISHES:
+		var row := _build_finish_row(style)
+		_finish_rows[style["id"]] = row
+		finish_list.add_child(row)
 
 	PlayerProfile.coins_changed.connect(_on_coins_changed)
 
@@ -151,6 +161,35 @@ func _build_trail_row(style: Dictionary) -> Control:
 	return row
 
 
+## A still of the effect at its peak. `finish_effect.gd` says why it is a still
+## and not a loop: the column it sits in is stills, and one animated cell in it
+## would read as a bug rather than as a preview.
+func _build_finish_row(style: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+
+	var swatch := TextureRect.new()
+	swatch.texture = FinishEffect.swatch_texture(
+		style, PlayerProfile.equipped_colour(), SWATCH_PX
+	)
+	swatch.custom_minimum_size = Vector2(SWATCH_PX, SWATCH_PX)
+	row.add_child(swatch)
+
+	var name_label := Label.new()
+	name_label.text = style["name"]
+	name_label.custom_minimum_size = Vector2(140, 0)
+	row.add_child(name_label)
+
+	var action := Button.new()
+	action.custom_minimum_size = Vector2(120, 0)
+	action.name = "Action"
+	action.pressed.connect(func() -> void: _on_finish_action_pressed(style["id"]))
+	row.add_child(action)
+
+	_refresh_finish_row(row, style["id"])
+	return row
+
+
 func _on_action_pressed(id: int) -> void:
 	if PlayerProfile.owns_skin(id):
 		PlayerProfile.equip_skin(id)
@@ -167,6 +206,14 @@ func _on_trail_action_pressed(id: int) -> void:
 	_refresh_all_rows()
 
 
+func _on_finish_action_pressed(id: int) -> void:
+	if PlayerProfile.owns_finish(id):
+		PlayerProfile.equip_finish(id)
+	else:
+		PlayerProfile.buy_finish(id)
+	_refresh_all_rows()
+
+
 func _on_coins_changed(balance: int) -> void:
 	_coins_label.text = "%d coins" % balance
 
@@ -176,6 +223,23 @@ func _refresh_all_rows() -> void:
 		_refresh_row(_rows[id], id)
 	for id in _trail_rows:
 		_refresh_trail_row(_trail_rows[id], id)
+	for id in _finish_rows:
+		_refresh_finish_row(_finish_rows[id], id)
+
+
+func _refresh_finish_row(row: Control, id: int) -> void:
+	var action := row.get_node("Action") as Button
+	var style := PlayerProfile.finish_by_id(id)
+
+	if PlayerProfile.equipped_finish == id:
+		action.text = "EQUIPPED"
+		action.disabled = true
+	elif PlayerProfile.owns_finish(id):
+		action.text = "EQUIP"
+		action.disabled = false
+	else:
+		action.text = "BUY  %d" % int(style["price"])
+		action.disabled = PlayerProfile.coins < int(style["price"])
 
 
 func _refresh_trail_row(row: Control, id: int) -> void:

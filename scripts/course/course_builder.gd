@@ -82,7 +82,29 @@ const CONTROL_POINTS := [
 	Vector3(0.0, -28.4, -131.0), # jump approach
 	Vector3(0.0, -31.0, -145.0), # rotating bumper
 	Vector3(0.0, -34.0, -159.0), # finish
+	# --- Runoff, past the line -------------------------------------------------
+	#
+	# The course used to stop at the finish. Marbles crossed it, ran off the end
+	# of the ribbon and dropped into open air, and the only thing that made that
+	# survivable was that a FINISHED marble is exempt from the fall check — so
+	# the round scored correctly while the field it scored was falling out of the
+	# world. The other courses papered over the same shape with a wall six metres
+	# past the line, which stops a marble rather than slowing one.
+	#
+	# These three points are the runoff `FinishZone` ramps damping across: still
+	# descending as the line is crossed, so nothing changes underfoot at the
+	# moment that matters, then flattening hard. 6.6 degrees, then 2.6, then
+	# barely half a degree of holding area for the field to settle in.
+	Vector3(0.0, -35.4, -171.0), # runoff, easing off the descent
+	Vector3(0.0, -36.0, -184.0), # runoff, near level
+	Vector3(0.0, -36.1, -193.0), # holding area
 ]
+
+## Index of the finish in `CONTROL_POINTS`. Everything after it is runoff, and
+## ratio 1.0 still means the finish rather than the end of the geometry — every
+## `WIDTH_KEYS`, `SPLIT_RANGE`, `JUMP_GAP_RANGE` and `VIADUCT_RANGES` value is
+## written against that, so the race is laid out exactly where it always was.
+const FINISH_POINT_INDEX := 12
 
 ## Half-width of the trough, keyed by progress through the race. Narrow
 ## sections are deliberate collision points, not the default width.
@@ -94,6 +116,13 @@ const WIDTH_KEYS := [
 	Vector2(0.66, 3.6),  # split / merge
 	Vector2(0.78, 3.0),
 	Vector2(1.00, 3.0),
+	# Past the line the trough opens out. A six-metre channel is a fine final
+	# stretch and a bad runoff: twelve marbles arriving into one at speed stack
+	# up nose to tail, and the finishing order stops being something you can see
+	# on the track. Flared over roughly fifteen metres rather than at the line,
+	# so the walls read as opening rather than as a step outward.
+	Vector2(1.10, 4.6),
+	Vector2(1.24, 5.4),
 ]
 
 const SPLIT_RANGE := Vector2(0.63, 0.71)
@@ -367,6 +396,9 @@ const RIVER_OVERLAP := 0.4
 var _length := 0.0
 var _race_start_offset := 0.0
 var _race_length := 0.0
+## Where the finish line sits along `curve`, and how much curve is left after it.
+var _finish_offset := 0.0
+var _runoff_length := 0.0
 var _rings: Array[Dictionary] = []
 ## The waterline span — where the sloping banks meet `RIVER_LEVEL` — as
 ## along-course offsets. Drawing only: wider than the flat bed below it,
@@ -384,9 +416,15 @@ func build() -> void:
 	_build_curve()
 
 	_race_start_offset = curve.get_closest_offset(RACE_START_POINT)
-	_race_length = _length - _race_start_offset
+	# The curve now runs past the finish (see `FINISH_POINT_INDEX`), so the race
+	# is the stretch up to the finish point and the rest is runoff. `_race_length`
+	# is what every ratio in this file is measured against; it must not pick up
+	# the runoff, or the whole course slides up-track.
+	_finish_offset = curve.get_closest_offset(CONTROL_POINTS[FINISH_POINT_INDEX])
+	_race_length = _finish_offset - _race_start_offset
+	_runoff_length = _length - _finish_offset
 	start_transform = _frame_at(_race_start_offset)
-	finish_position = curve.sample_baked(_length)
+	finish_position = curve.sample_baked(_finish_offset)
 
 	_sample_rings()
 
@@ -397,6 +435,7 @@ func build() -> void:
 	_build_surface(boundary, _rings.size() - 1, SMOOTH_FRICTION, SMOOTH_COLOUR)
 
 	_add_back_wall()
+	_add_runoff_backstop()
 	_add_split_divider()
 	_add_jump_ramp()
 	_add_jump_boost()
@@ -632,6 +671,29 @@ func _add_back_wall() -> void:
 		frame.translated_local(Vector3(0.0, WALL_HEIGHT * 0.5, 0.5)),
 		Vector3(half_width * 2.0, WALL_HEIGHT, 0.4),
 		ROUGH_COLOUR.darkened(0.3),
+		ROUGH_FRICTION
+	)
+
+
+## Closes the far end of the runoff.
+##
+## Not the old six-metres-past-the-line wall in a new place: by the time a marble
+## reaches this, thirty metres of ramped damping have already taken almost all of
+## its speed, so it is a kerb that stops a slow roll rather than the thing that
+## ends a race. It exists at all because the ribbon has to end somewhere and a
+## marble that rolls off it registers as having left the world.
+##
+## Low, at three-quarters of a marble's height above the deck, so it does not
+## stand up in front of the finished field the camera is looking at.
+const RUNOFF_KERB_HEIGHT := 0.7
+
+func _add_runoff_backstop() -> void:
+	var frame := _frame_at(_length - 0.6)
+	var half_width := _width_at((_length - _race_start_offset) / _race_length)
+	_add_box(
+		frame.translated_local(Vector3(0.0, RUNOFF_KERB_HEIGHT * 0.5, 0.0)),
+		Vector3(half_width * 2.2, RUNOFF_KERB_HEIGHT, 0.5),
+		SMOOTH_COLOUR.darkened(0.35),
 		ROUGH_FRICTION
 	)
 
@@ -1455,6 +1517,32 @@ func _in_range(ratio: float, bounds: Vector2) -> bool:
 
 func fall_threshold_y() -> float:
 	return FALL_THRESHOLD_Y
+
+
+func finish_width() -> float:
+	return _width_at(1.0) * 2.0
+
+
+func finish_runoff() -> float:
+	return _runoff_length
+
+
+## The Canyon's own finish: a sandstone gateway with checkered markings, banners
+## and blown dust. Built by a separate class rather than inline here, because the
+## whole point of `Course.create_finish_visual` is that the next course swaps this
+## line for its own and nothing else moves.
+##
+## Materials are handed over rather than rebuilt: everything in this course draws
+## through the banded rock shader (see `ROCK_SHADER`), and a finish arch shaded by
+## Godot's default lambert next to a canyon that is not would read as an asset
+## dropped in from another game.
+func create_finish_visual() -> Node3D:
+	return CanyonFinish.create(
+		_frame_at(_finish_offset),
+		_width_at(1.0),
+		_runoff_length,
+		func(colour: Color) -> Material: return _rock_material(colour)
+	)
 
 
 ## True once `position` is at or below the river's own surface height, within

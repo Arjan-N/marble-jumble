@@ -46,10 +46,25 @@ extends Course
 const LENGTH := 195.0
 ## Starting ramp behind the line, where the field settles.
 const RAMP_LENGTH := 14.0
-## Floor and rails carry on past the finish, far enough to reach the backstop the
-## field piles up against. Two metres of margin beyond it, so a marble that
-## arrives fast enough to bounce back off it lands on floor rather than on air.
-const RUNOFF_LENGTH := 8.0
+## Floor and rails carry on past the finish, far enough for the field to run out
+## and come to rest on them.
+##
+## Was 8 metres, which was only ever enough to reach the backstop the field piled
+## up against — a marble crossed the line, rolled for a moment and was stopped.
+## `FinishZone` ramps damping across this distance instead, so the marble slows
+## because the runoff slows it rather than because something is in the way, and
+## the distance has to be long enough for that to happen.
+const RUNOFF_LENGTH := 30.0
+## What fraction of the final grade the run-out keeps. Same reasoning as
+## `CoursePath.RUNOFF_FLATTEN`, which is the same change made for the courses
+## built on that class: a runoff still falling at the course's own grade is
+## fighting the damping the whole way, and a dead-flat one would put a crease
+## across the track at the line. This course integrates its own centreline, so
+## it needs its own copy.
+const RUNOFF_FLATTEN := 0.1
+## Height of the kerb that closes the run-out. Knee-high on a marble rather than
+## a wall — see `_build_finish_line`.
+const RUNOFF_KERB_HEIGHT := 0.7
 
 ## The vertical profile, as `[fraction_along, grade_degrees]` pairs giving the
 ## grade *up to* that fraction. Phase 0 criterion 2 asks that slopes visibly and
@@ -430,7 +445,16 @@ func _grade_at(s: float) -> float:
 		# Even spread across +/- GRADE_BLEND.
 		var offset := (float(i) / float(taps - 1) - 0.5) * 2.0 * GRADE_BLEND
 		total += _profile_grade(s + offset)
-	return deg_to_rad(total / float(taps))
+	var grade := total / float(taps)
+
+	# Past the line the descent eases off — see `RUNOFF_FLATTEN`. Smoothstepped
+	# from exactly 1.0 at the finish, so this adds no discontinuity of its own at
+	# the point it starts applying.
+	if s > LENGTH:
+		var t := clampf((s - LENGTH) / RUNOFF_LENGTH, 0.0, 1.0)
+		grade *= lerpf(1.0, RUNOFF_FLATTEN, smoothstep(0.0, 1.0, t))
+
+	return deg_to_rad(grade)
 
 
 ## The raw step function, before smoothing. Distances before the start line and
@@ -953,9 +977,14 @@ func _add_ramp_segment(from_point: Vector3, to_point: Vector3) -> void:
 	)
 
 
-## A visible line plus a backstop. The line is what the player reads; the
-## backstop is so finishers pile up just past it instead of rolling off the end
-## and registering as falls.
+## A visible line plus the kerb closing the run-out.
+##
+## The kerb used to sit six metres past the line and stand 2.4m tall, and it was
+## what actually stopped a race: cross, roll, hit wall. It is now at the far end
+## of a thirty-metre runoff and knee-high, because by the time a marble reaches
+## it `FinishZone` has already taken nearly all of its speed — it catches a slow
+## roll rather than ending a race, and it is low enough not to stand up in front
+## of the finished field the camera is watching.
 func _build_finish_line() -> void:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = FINISH_COLOUR
@@ -970,8 +999,10 @@ func _build_finish_line() -> void:
 	add_child(visual)
 
 	_add_box(
-		_frame_at(LENGTH + 6.0).translated_local(Vector3(0.0, RAIL_HEIGHT * 0.5, 0.0)),
-		Vector3(HALF_WIDTH * 2.0, RAIL_HEIGHT, RAIL_THICKNESS),
+		_frame_at(LENGTH + RUNOFF_LENGTH - 1.2).translated_local(
+			Vector3(0.0, RUNOFF_KERB_HEIGHT * 0.5, 0.0)
+		),
+		Vector3(HALF_WIDTH * 2.0, RUNOFF_KERB_HEIGHT, RAIL_THICKNESS),
 		RAIL_COLOUR.darkened(0.35)
 	)
 
@@ -1164,6 +1195,10 @@ func jump_clearance(position: Vector3) -> float:
 
 func finish_width() -> float:
 	return HALF_WIDTH * 2.0
+
+
+func finish_runoff() -> float:
+	return RUNOFF_LENGTH
 
 
 func start_width() -> float:

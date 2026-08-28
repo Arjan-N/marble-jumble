@@ -207,11 +207,81 @@ const TRAILS := [
 	},
 ]
 
+## Finish effects: what happens when the player's marble crosses the line and
+## makes the cut (`finish_effect.gd`), independent of both the skin and the
+## trail — any effect combines with any of either. id 0 is the free default and
+## is deliberately *exactly* what the game did before effects existed: the small
+## coloured burst `FinishZone` fires for every finisher. Everything above it is
+## an upgrade on a moment the player already knows the shape of.
+##
+## Keys a style may carry, all optional:
+##   colour   Overrides the marble's own colour. Absent means the effect is
+##            thrown in whatever skin colour is equipped.
+##   power    Overall scale — particle count, speed, ring radius. 1.0 is the
+##            free burst; above it the effect leaves the marble behind.
+##   ring     Shockwave rings lying on the deck. >= 1.5 draws two, staggered.
+##   flash    Brightness of the omni light flash. 0 or absent is no flash.
+##   shards   When true, heavy tumbling pieces are thrown with the flecks and
+##            outlive them, so the effect has a tail.
+##   mortar   When true, a second shower opens above the first a beat later.
+##   rainbow  When true, every particle takes its own hue instead of the one
+##            colour.
+##   lighten  How far the effect's colour is lifted towards white. 0.3 default.
+const FINISHES := [
+	{"id": 0, "name": "Classic Pop", "power": 0.35, "price": 0},
+	{
+		"id": 1,
+		"name": "Shockwave",
+		"power": 1.0,
+		"ring": 1.0,
+		"price": 120,
+	},
+	{
+		"id": 2,
+		"name": "Firework",
+		"power": 1.0,
+		"mortar": true,
+		"price": 180,
+	},
+	{
+		"id": 3,
+		"name": "Detonation",
+		"colour": Color(0.98, 0.55, 0.15),
+		"power": 1.3,
+		"ring": 2.0,
+		"flash": 0.8,
+		"shards": true,
+		"price": 260,
+	},
+	{
+		"id": 4,
+		"name": "Carnival",
+		"power": 1.1,
+		"mortar": true,
+		"rainbow": true,
+		"price": 300,
+	},
+	{
+		"id": 5,
+		"name": "Supernova",
+		"colour": Color(0.75, 0.90, 1.0),
+		"power": 1.6,
+		"ring": 2.0,
+		"flash": 1.4,
+		"shards": true,
+		"mortar": true,
+		"lighten": 0.15,
+		"price": 500,
+	},
+]
+
 var coins: int = 0
 var owned_skins: Array[int] = [0]
 var equipped_skin: int = 0
 var owned_trails: Array[int] = [0]
 var equipped_trail: int = 0
+var owned_finishes: Array[int] = [0]
+var equipped_finish: int = 0
 
 
 func _ready() -> void:
@@ -276,6 +346,42 @@ func owns_trail(id: int) -> bool:
 	return owned_trails.has(id)
 
 
+func buy_finish(id: int) -> bool:
+	if owned_finishes.has(id):
+		return false
+	var style := finish_by_id(id)
+	if style.is_empty() or coins < int(style["price"]):
+		return false
+	coins -= int(style["price"])
+	owned_finishes.append(id)
+	coins_changed.emit(coins)
+	_save()
+	return true
+
+
+func equip_finish(id: int) -> bool:
+	if not owned_finishes.has(id):
+		return false
+	equipped_finish = id
+	_save()
+	return true
+
+
+func owns_finish(id: int) -> bool:
+	return owned_finishes.has(id)
+
+
+func finish_by_id(id: int) -> Dictionary:
+	for style in FINISHES:
+		if style["id"] == id:
+			return style
+	return {}
+
+
+func equipped_finish_data() -> Dictionary:
+	return finish_by_id(equipped_finish)
+
+
 func trail_by_id(id: int) -> Dictionary:
 	for style in TRAILS:
 		if style["id"] == id:
@@ -312,6 +418,8 @@ func _save() -> void:
 	config.set_value("profile", "equipped_skin", equipped_skin)
 	config.set_value("profile", "owned_trails", owned_trails)
 	config.set_value("profile", "equipped_trail", equipped_trail)
+	config.set_value("profile", "owned_finishes", owned_finishes)
+	config.set_value("profile", "equipped_finish", equipped_finish)
 	config.save(SAVE_PATH)
 
 
@@ -341,3 +449,17 @@ func _load() -> void:
 	equipped_trail = int(config.get_value("profile", "equipped_trail", 0))
 	if not owns_trail(equipped_trail):
 		equipped_trail = 0
+
+	# Absent from every profile saved before finish effects existed, which is
+	# why the default is spelled out rather than left to the field initialiser:
+	# an old save loads as owning the free burst and equipping it, which is what
+	# it already had.
+	owned_finishes = []
+	for id in config.get_value("profile", "owned_finishes", [0]):
+		owned_finishes.append(int(id))
+	if not owned_finishes.has(0):
+		owned_finishes.append(0)
+
+	equipped_finish = int(config.get_value("profile", "equipped_finish", 0))
+	if not owns_finish(equipped_finish):
+		equipped_finish = 0

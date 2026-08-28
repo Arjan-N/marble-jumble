@@ -92,6 +92,38 @@ func finish_width() -> float:
 	return 12.0
 
 
+## How much track carries on past `finish_position`, in metres.
+##
+## `FinishZone` sizes its slowdown ramp against this, so it is the course's
+## statement of "there is this much room after the line for a marble to run out
+## in" — not a decoration. A course that returns a metre gets a finish that
+## behaves like the old wall, because a metre is all it has.
+##
+## The floor, the walls that contain the runoff and the backstop at its far end
+## are the course's to build, in `build`, like the rest of its geometry. Only the
+## damping ramp and the crossing trigger are shared.
+func finish_runoff() -> float:
+	return 8.0
+
+
+## The course's own finish dressing — arch, markings, banners, whatever the map
+## calls for — as a node the `FinishZone` parents under itself.
+##
+## `PROJECT.md` section 6 wants adding a course to be a content change, and a
+## finish that looked the same on every map would be the most obvious place that
+## stopped being true: a sandstone arch is Canyon's, a steel gantry is a
+## factory's, and neither belongs to the race logic. The logical finish — the
+## trigger, the order, the slowdown — is shared; this is the half that is not.
+##
+## Returns `null` for a course that dresses its own finish inline as part of
+## `build`, which is what every course but the Canyon currently does. Purely
+## visual: anything a marble can touch belongs in `build` with the rest of the
+## collision geometry, so that a fixture can never be added here by accident and
+## change a race outcome.
+func create_finish_visual() -> Node3D:
+	return null
+
+
 ## How wide the starting barrier has to be to close the track.
 func start_width() -> float:
 	return 6.8

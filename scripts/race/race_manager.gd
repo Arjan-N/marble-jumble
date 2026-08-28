@@ -118,6 +118,18 @@ const COURSE_POOL: Array[GDScript] = [
 	# at the top of it, so this is the first course to shorten if race length
 	# gets tuned.
 	preload("res://scripts/course/temple_run_course.gd"),
+	# Jungle River: the first course built on `TerrainShell` — the racing surface
+	# is the floor of a trench cut into continuous terrain rather than a ribbon
+	# with scenery beside it. Probe-verified with `tools/probe_course.tscn`
+	# (MJ_COURSE=river): 12/12 finish, no stalls, no falls.
+	#
+	# It is also the first course deliberately outside `DECISIONS.md`'s 20-30s
+	# course length — winner at ~67s, last finisher at ~90s — because the brief it
+	# was built to asks for 60-90. That is a product decision the two documents
+	# now disagree about; see the class docs. A tournament of three rounds on
+	# courses this long is roughly four minutes of racing, so if the pool ever
+	# picks this three times the round length is the thing to look at first.
+	preload("res://scripts/course/jungle_river_course.gd"),
 	preload("res://scripts/course/course_builder.gd"),
 ]
 
@@ -125,6 +137,10 @@ enum Phase { SETTLING, RACING, COMPLETE }
 
 var _course: Course
 var _active_course_script: GDScript
+## Owned by the course (see `_add_finish`), so it is freed with it. Held here
+## only to register the field, hear about crossings and ask where the camera
+## should look once the player is done.
+var _finish_zone: FinishZone
 var _barrier: StartBarrier
 var _camera: ChaseCamera
 ## Held so `_apply_default_environment` and `Course.decorate_environment` can
@@ -240,20 +256,60 @@ var _last_contenders: int = -1
 ## this the notice line strobes.
 const OVERTAKE_COOLDOWN := 1.6
 
-## Half the field finishing is what ends a round (PROJECT.md section 3: the
-## top half advance); cutting the moment that happens would strand whoever is
-## mid-course, so stragglers get this long to land, finish or fall before the
-## round is scored. Falling never buys a place, however long the grace runs.
-const ROUND_GRACE_PERIOD := 6.0
-## Negative while no round has reached its 50% mark yet.
+## How long the round stays open once there is nothing left for it to decide.
+##
+## The trigger used to be "half the field has finished", which is the moment the
+## round's *result* is settled — everyone still on the course is racing for
+## places that no longer change anything. That was the right rule when crossing
+## the line meant hitting a wall a moment later, and it is the wrong one now the
+## finish has a runoff to roll out in: the player who came fourth wants to watch
+## fifth through twelfth arrive, and cutting to the results screen six seconds
+## after the sixth finisher takes that away.
+##
+## So it is now long enough for the tail of a healthy field to get in, and it is
+## held rather than ticked while the player's own marble is still running (see
+## `_physics_process`), so the round never ends out from under the race the
+## player is actually watching. It is still a safeguard rather than a feature: a
+## marble that never arrives cannot hold the round open past this, and falling
+## never buys a place however long it runs.
+const ROUND_GRACE_PERIOD := 12.0
+## Negative until the round has nothing left to decide.
 var _grace_timer := -1.0
+
+## Beat between the last marble resolving and the results screen, so the field
+## is seen coming to rest rather than being frozen mid-roll under a panel.
+const FINISH_SETTLE_PAUSE := 1.4
+## Negative while the round is still live.
+var _settle_timer := -1.0
+
+## How long the camera stays on the player's marble after they detonate a finish
+## effect, before `_watch_the_finish` pulls back to the finish view.
+##
+## The two used to land on the same frame, and they fight: `ChaseCamera.
+## watch_finish` snaps to a wider lens and slides the rig away down the runoff,
+## so the burst was at its largest exactly as the frame it filled got bigger and
+## further away — it read as the effect shrinking rather than blooming. Holding
+## the hand-off until the bloom is past lets the effect play at the size the
+## chase rig was already framing, and the pull-back then happens over its fade,
+## where a widening frame is the right move rather than a competing one.
+##
+## Deliberately shorter than `FinishEffect.LIFETIME`: the wait is for the peak,
+## not for the last shard, and the field is still arriving.
+const FINISH_EFFECT_HOLD := 0.75
+## Positive only between a detonated finish and the camera hand-off it delays.
+var _finish_hold := 0.0
 
 ## Backstop for a course whose field genuinely stalls rather than merely runs
 ## slow — `course_builder.gd`'s own comments document exactly that, around
 ## ratio 0.66, and confirmed reproducing it: without this, a round where
 ## nobody ever crosses the line waits forever for a 50%-finished mark that
 ## never arrives. Well above the ~20-30s target for a healthy course.
-const MAX_ROUND_DURATION := 75.0
+##
+## Raised from 75 when the grace period grew (see `ROUND_GRACE_PERIOD`): the
+## longest course in the pool runs 240m, and 75 was close enough to a healthy
+## round plus a full grace that this backstop could have started cutting real
+## races short rather than only stalled ones.
+const MAX_ROUND_DURATION := 95.0
 
 ## A finished round no longer advances on a timer. `RoundResultsScreen`
 ## (PROJECT.md section 4) presents the field, shows who survived and who is
@@ -295,10 +351,31 @@ func _physics_process(delta: float) -> void:
 		if _grace_timer < 0.0 and _race_time >= MAX_ROUND_DURATION:
 			_resolve_round()
 
-	if _grace_timer > 0.0:
+	# Held, not ticked, while the player is still on the course. The grace exists
+	# to give the round a bounded tail once its result is settled, and cutting it
+	# short while the player's own marble is mid-run would end the race they are
+	# actually watching. `MAX_ROUND_DURATION` above is the ceiling on that hold,
+	# so a player who is genuinely stuck cannot hang the round.
+	if _grace_timer > 0.0 and _player_done:
 		_grace_timer -= delta
 		if _grace_timer <= 0.0:
 			_grace_timer = 0.0
+			_resolve_round()
+
+	# The camera's hand-off to the finish view, held back while the player's own
+	# finish effect is at full bloom. See `_finish_hold`.
+	if _finish_hold > 0.0:
+		_finish_hold -= delta
+		if _finish_hold <= 0.0:
+			_finish_hold = 0.0
+			_watch_the_finish()
+
+	# Checked after the grace period, so a round whose last marble arrives during
+	# the grace still gets its settling beat rather than both firing at once.
+	if _settle_timer > 0.0:
+		_settle_timer -= delta
+		if _settle_timer <= 0.0:
+			_settle_timer = 0.0
 			_resolve_round()
 
 	if _phase == Phase.SETTLING and _settle_index < _settle_order.size():
@@ -387,6 +464,11 @@ func _start_race() -> void:
 ## that can repeat itself.
 func _pick_course() -> GDScript:
 	var pool := COURSE_POOL.duplicate()
+	var forced := OS.get_environment("MJ_COURSE").to_lower()
+	if forced != "":
+		for script: GDScript in COURSE_POOL:
+			if script.resource_path.get_file().begins_with(forced):
+				return script
 	if _active_course_script != null and pool.size() > 1:
 		pool.erase(_active_course_script)
 	return pool[_rng.randi_range(0, pool.size() - 1)]
@@ -414,6 +496,13 @@ func _teardown_race() -> void:
 	if _results_screen != null and is_instance_valid(_results_screen):
 		_results_screen.queue_free()
 	_results_screen = null
+
+	# Freed as a child of the course, above; only the reference is dropped here.
+	_finish_zone = null
+	_settle_timer = -1.0
+	# A round that ends while the hold is still running would otherwise carry it
+	# into the next one and hand that round's camera over a beat late.
+	_finish_hold = 0.0
 
 	_marbles.clear()
 	_finish_order.clear()
@@ -550,11 +639,16 @@ func _add_barrier() -> void:
 	_barrier.opened.connect(_on_barrier_opened)
 
 
+## The finish is a zone rather than a gate now — trigger, runoff slowdown and
+## per-marble feedback in one node, with the map's own dressing hung off it. It
+## is parented to the course so `_teardown_race` frees it along with everything
+## else the course owns, and positioned by the course's own frame rather than by
+## this node, which is why there is no `global_position` here any more.
 func _add_finish() -> void:
-	var finish := FinishArea.create(_course.finish_width())
-	_course.add_child(finish)
-	finish.global_position = _course.finish_position + Vector3(0.0, 2.0, 0.0)
-	finish.marble_finished.connect(_on_marble_finished)
+	_finish_zone = FinishZone.create(_course)
+	_course.add_child(_finish_zone)
+	_finish_zone.register(_marbles)
+	_finish_zone.marble_finished.connect(_on_marble_finished)
 
 
 func _add_camera() -> void:
@@ -927,13 +1021,61 @@ func _player_place() -> int:
 # --- Outcomes -----------------------------------------------------------------
 
 
+## A marble crossed the line.
+##
+## This is the only place a finishing position is decided, and `_finish_order` is
+## the only record of one — the zone reports crossings and presents places, the
+## results screen reads the same list, and there is deliberately no second
+## ranking anywhere for the two to disagree about.
+##
+## Note what does *not* happen: nothing is frozen, nothing is hidden, and the
+## round is not ended. The marble keeps every bit of its momentum and rolls out
+## into the runoff, where `FinishZone`'s damping brings it down; the round keeps
+## running until `_check_round_progress` says there is nothing left to watch.
 func _on_marble_finished(marble: Marble) -> void:
 	marble.state = Marble.State.FINISHED
 	_finish_order.append(marble)
+	var place := _finish_order.size()
+
+	var detonate := marble.is_player and _makes_cut(place)
+	if _finish_zone != null and is_instance_valid(_finish_zone):
+		_finish_zone.celebrate(marble, place, detonate)
+
+	# Set before `_watch_the_finish` below, which reads it and stands down.
+	if detonate:
+		_finish_hold = FINISH_EFFECT_HOLD
+
 	if marble.is_player:
 		_sound.play_finish()
 		_player_done = true
+		_hud.announce("You finished %s" % _ordinal(place), PLAYER_COLOUR)
+		_pop_comic(RankTag.ordinal(place).to_upper(), PLAYER_COLOUR)
+	else:
+		# By name and place, the same vocabulary `_announce_fall` uses, so the
+		# row that just went "fin" in the standings and the line that just
+		# appeared refer to each other.
+		_hud.announce("%s — %s" % [marble.marble_name, _ordinal(place)], marble.colour)
+
+	_watch_the_finish()
 	_check_round_progress()
+
+
+## Hands the camera to the finish area once the player's own run is over.
+##
+## Their marble is the wrong subject from that moment: it is parked in the runoff
+## with nothing left to do, or — if they fell — hidden entirely. What is left to
+## watch is the rest of the field arriving, so the rig settles on the finish and
+## stays there while it does. Called from both ways a run can end.
+func _watch_the_finish() -> void:
+	if not _player_done:
+		return
+	if _finish_hold > 0.0:
+		return
+	if _camera == null or not is_instance_valid(_camera):
+		return
+	if _finish_zone == null or not is_instance_valid(_finish_zone):
+		return
+	_camera.watch_finish(_finish_zone.spectate_focus(), _finish_zone.spectate_forward())
 
 
 ## Out-of-bounds detection. A simple height threshold is enough for Phase 0;
@@ -986,6 +1128,7 @@ func _eliminate(marble: Marble) -> void:
 	_water_delay.erase(marble)
 	if marble.is_player:
 		_player_done = true
+		_watch_the_finish()
 	_announce_fall(marble)
 
 
@@ -1031,13 +1174,36 @@ func _check_round_progress() -> void:
 			break
 
 	if not still_racing:
-		_resolve_round()
+		# Not resolved on the spot: the last marbles across are still rolling out
+		# and the results screen freezes whatever it finds. `_settle_timer` gives
+		# them a beat to come to rest first.
+		if _settle_timer < 0.0:
+			_settle_timer = FINISH_SETTLE_PAUSE
 		return
 
-	if _grace_timer < 0.0:
-		var half := _marbles.size() / 2
-		if half > 0 and _finish_order.size() >= half:
-			_grace_timer = ROUND_GRACE_PERIOD
+	if _grace_timer < 0.0 and _survivors_decided():
+		_grace_timer = ROUND_GRACE_PERIOD
+
+
+## Whether enough marbles have crossed the line to settle who goes through.
+## PROJECT.md section 3: the top half advance, whatever the field's size is.
+func _survivors_decided() -> bool:
+	return _finish_order.size() >= _survivor_count()
+
+
+## How many of this round's field go through. The cut is a fraction of the field
+## and so is known from the moment the grid is built — which is what lets a
+## marble learn on the line whether it survived, rather than on the results
+## screen.
+func _survivor_count() -> int:
+	return maxi(1, _marbles.size() / 2)
+
+
+## Whether a place is inside the cut. The finish effect's gate: the player who
+## came eighth of twelve is out, and firing fireworks over that would be the
+## game congratulating them on being eliminated.
+func _makes_cut(place: int) -> bool:
+	return place <= _survivor_count()
 
 
 ## Scores the round, decides the tournament's fate for the player, and hands
@@ -1058,16 +1224,25 @@ func _resolve_round() -> void:
 	_phase = Phase.COMPLETE
 	_grace_timer = -1.0
 
-	var survivor_count := maxi(1, _marbles.size() / 2)
+	var survivor_count := _survivor_count()
 	var survivors := _finish_order.slice(0, mini(survivor_count, _finish_order.size()))
 	var player_survives := (
 		_player != null and is_instance_valid(_player) and survivors.has(_player)
 	)
 	var won := player_survives and survivors.size() <= 1
 
+	# The course is named because it is the first thing anyone asks when a round
+	# reports a short finish count, and the log could not previously answer it.
 	print(
-		"Round %d complete in %.1fs | finished %d/%d | player %s"
-		% [_round_number, _race_time, _finish_order.size(), _marbles.size(), _player_status()]
+		"Round %d on %s complete in %.1fs | finished %d/%d | player %s"
+		% [
+			_round_number,
+			_active_course_script.resource_path.get_file().get_basename(),
+			_race_time,
+			_finish_order.size(),
+			_marbles.size(),
+			_player_status(),
+		]
 	)
 
 	var reward := 0
@@ -1147,6 +1322,8 @@ func _freeze_race() -> void:
 		_cut_marker.visible = false
 	if _rank_tag != null and is_instance_valid(_rank_tag):
 		_rank_tag.visible = false
+	if _finish_zone != null and is_instance_valid(_finish_zone):
+		_finish_zone.clear_tags()
 
 
 func _show_results(

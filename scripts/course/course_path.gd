@@ -136,9 +136,30 @@ func sample(profile: Array, s: float, window := BLEND) -> float:
 	return _smoothed(profile, s, window)
 
 
+## What fraction of the final grade the runoff still has at its far end.
+##
+## The profile itself holds its last entry past `length` (see `_raw`), which was
+## right when the runoff was eight metres long and ended in a wall: nobody was
+## meant to still be moving by then. Now that the runoff is where the field
+## actually comes to rest — `FinishZone` ramps damping across it, and a marble
+## that finishes keeps rolling instead of being stopped — a stretch still falling
+## at the course's steepest grade is fighting that the whole way.
+##
+## So the descent eases off past the line. Not to zero: a dead-flat runoff after
+## a steep final drop is a step in the geometry, and the last thing a marble
+## should hit at speed is a crease. A tenth of the grade reads as level while
+## still running downhill.
+const RUNOFF_FLATTEN := 0.1
+
 ## Descent at `s`, in radians, positive downhill.
 func pitch_at(s: float) -> float:
-	return deg_to_rad(_smoothed(_pitch, s, BLEND))
+	var pitch := _smoothed(_pitch, s, BLEND)
+	if s > length and runoff > 0.0:
+		# Smoothstepped from exactly 1.0 at the line, so this scaling introduces
+		# no discontinuity of its own at the point it starts applying.
+		var t := clampf((s - length) / runoff, 0.0, 1.0)
+		pitch *= lerpf(1.0, RUNOFF_FLATTEN, smoothstep(0.0, 1.0, t))
+	return deg_to_rad(pitch)
 
 
 ## Bearing at `s`, in radians, positive turning right.

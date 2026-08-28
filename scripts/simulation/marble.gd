@@ -271,10 +271,25 @@ func _physics_process(delta: float) -> void:
 	_last_velocity = linear_velocity
 
 
+## The tuning this marble was built with.
+##
+## Exposed for reading only. `FinishZone` ramps damping upward through the
+## runoff and has to start that ramp from the values the marble was actually
+## racing with — a second copy of `linear_damp`/`angular_damp` living outside
+## `MarbleTuning` is exactly what that resource's header rules out.
+func tuning() -> MarbleTuning:
+	return _tuning
+
+
 ## Returns the marble to a settled pre-race state with no leaked physics.
 func reset_to(spawn: Transform3D) -> void:
 	state = State.WAITING
 	freeze = false
+	# Damping is no longer constant for a marble's whole life — the water grace
+	# period and `FinishZone`'s runoff ramp both write it — so a reset has to put
+	# it back or "no leaked physics" stops being true.
+	linear_damp = _tuning.linear_damp
+	angular_damp = _tuning.angular_damp
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
 	global_transform = spawn

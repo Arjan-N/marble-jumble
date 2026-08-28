@@ -26,7 +26,15 @@ extends Course
 
 const LENGTH := 130.0
 const RAMP_LENGTH := 12.0
-const RUNOFF_LENGTH := 8.0
+## The run-out past the line, where the field actually comes to rest now.
+##
+## Was 8 metres, which was only ever enough to reach a wall: a marble crossed,
+## rolled for a moment and was stopped. `FinishZone` ramps damping across this
+## distance instead, so it has to be long enough for that ramp to do the work —
+## the marble slows because the runoff slows it, not because something is in the
+## way. `CoursePath` also eases the descent off across it (see `RUNOFF_FLATTEN`),
+## so the far end is near level.
+const RUNOFF_LENGTH := 30.0
 
 ## Section boundaries, as fractions of `LENGTH`.
 const PLAZA_END := 0.22
@@ -650,6 +658,19 @@ func _build_finish_gate() -> void:
 	visual.transform = frame.translated_local(Vector3(0.0, 0.04, 0.0))
 	add_child(visual)
 
+	# The kerb closing the run-out. This course never had one — the causeway
+	# simply ended and a finisher that was still moving rolled off it, which was
+	# survivable only because a FINISHED marble is exempt from the fall check.
+	# With `FinishZone` taking a finisher's speed across the run-out rather than
+	# a wall taking it at the line, what is needed here is something to catch a
+	# slow roll, and low enough not to stand up in front of the field the camera
+	# is watching arrive.
+	_add_box(
+		_frame_at(LENGTH + RUNOFF_LENGTH - 1.2).translated_local(Vector3(0.0, 0.35, 0.0)),
+		Vector3(_half_width_at(LENGTH + RUNOFF_LENGTH) * 2.0, 0.7, 0.6),
+		STONE_DARK,
+	)
+
 	# Outboard of the ridge, so nothing narrows the track at the one point the
 	# field is most likely to arrive at it several abreast.
 	var pillar_x := width * 0.5 + RIDGE_WIDTH + 0.9
@@ -774,6 +795,10 @@ func fall_threshold_y() -> float:
 
 func finish_width() -> float:
 	return _half_width_at(LENGTH) * 2.0
+
+
+func finish_runoff() -> float:
+	return RUNOFF_LENGTH
 
 
 func start_width() -> float:
