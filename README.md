@@ -15,6 +15,7 @@ whether watching a marble race is satisfying enough to restart immediately.
 | [`docs/PHASE_0_TECHNICAL_SPEC.md`](docs/PHASE_0_TECHNICAL_SPEC.md) | Locked scope for the current phase |
 | [`docs/CAMERA_SPIKE.md`](docs/CAMERA_SPIKE.md) | Open camera experiment — decides nothing yet |
 | [`docs/BACKLOG.md`](docs/BACKLOG.md) | Wanted and not yet built, with enough context to pick up cold |
+| [`docs/COURSE_RECIPE.md`](docs/COURSE_RECIPE.md) | What the newest course does that the others do not, and why |
 
 Where they disagree, the more specific and more recent one wins:
 `DECISIONS.md` > phase spec > `PROJECT.md`.
