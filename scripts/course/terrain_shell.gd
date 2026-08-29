@@ -141,9 +141,31 @@ var crest_fraction := 0.45
 ## split — the whole bed is flat and at one height. It exists because 400m of
 ## unbroken colour tells the eye nothing about how fast anything is moving.
 var centre_fraction := 0.42
+## Index of the centre strip in the nine-column section, for `centre_friction`.
+## Named rather than written as 4 in `_build_run`, because the column order is
+## `set_materials`' business and a bare index there would be the second place
+## that has to agree with it.
+const CENTRE_COLUMN := 4
 
 var friction := 0.34
 var bounce := 0.08
+## Friction of the bed's **centre strip**, when it differs from `friction`.
+##
+## Negative means "no split": one body per run at `friction`, which is what every
+## course before `MeltwaterCourse` gets and is byte-identical to the behaviour
+## before this existed.
+##
+## Set it and the run builds two colliders instead of one — the centre column at
+## this value, everything else at `friction` — so the fast line across the bed
+## can be a *surface* rather than a shape. `MeltwaterCourse` is polished ice down
+## the middle and wind-packed snow on the margins, which turns being shoved wide
+## into a cost that camber alone cannot express.
+##
+## Collision only. The visual split already exists (`centre_fraction`), and the
+## two want to agree: a friction change the player cannot see is a change they
+## can only learn by losing. It costs no draw calls, because the meshes are still
+## grouped by material exactly as before — only the collider is cut in two.
+var centre_friction := -1.0
 
 # --- Materials ----------------------------------------------------------------
 
@@ -318,6 +340,8 @@ func _build_run(parent: Node3D, run_from: float, run_to: float) -> void:
 	# eighty-one for a four-hundred-metre course, which on its own was half the
 	# scene's draw calls.
 	var all_faces := PackedVector3Array()
+	var centre_faces := PackedVector3Array()
+	var split_friction := centre_friction >= 0.0
 	var by_material := {}
 
 	for r in range(rows.size() - 1):
@@ -328,31 +352,48 @@ func _build_run(parent: Node3D, run_from: float, run_to: float) -> void:
 				near[c], far[c], near[c + 1],
 				near[c + 1], far[c], far[c + 1],
 			])
-			all_faces.append_array(quad)
+			if split_friction and c == CENTRE_COLUMN:
+				centre_faces.append_array(quad)
+			else:
+				all_faces.append_array(quad)
 
 			var material: Material = _column_materials[c]
 			if not by_material.has(material):
 				by_material[material] = PackedVector3Array()
 			by_material[material].append_array(quad)
 
-	var body := StaticBody3D.new()
-	body.name = "Trench"
-	var surface := PhysicsMaterial.new()
-	surface.friction = friction
-	surface.bounce = bounce
-	body.physics_material_override = surface
+	var body := _collision_body(all_faces, friction)
 
-	var shape := ConcavePolygonShape3D.new()
-	shape.set_faces(all_faces)
-	shape.backface_collision = false
-	var collider := CollisionShape3D.new()
-	collider.shape = shape
-	body.add_child(collider)
+	# The centre strip's collider is a sibling rather than a second shape on the
+	# same body, because `physics_material_override` is per body: two frictions
+	# means two bodies. It carries no visual — the meshes below cover the whole
+	# section regardless of how the collision was cut.
+	if split_friction and not centre_faces.is_empty():
+		var centre := _collision_body(centre_faces, centre_friction)
+		centre.name = "TrenchCentre"
+		parent.add_child(centre)
 
 	for material: Material in by_material:
 		body.add_child(_visual(by_material[material], material))
 
 	parent.add_child(body)
+
+
+func _collision_body(faces: PackedVector3Array, surface_friction: float) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.name = "Trench"
+	var surface := PhysicsMaterial.new()
+	surface.friction = surface_friction
+	surface.bounce = bounce
+	body.physics_material_override = surface
+
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	shape.backface_collision = false
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	body.add_child(collider)
+	return body
 
 
 func _visual(faces: PackedVector3Array, material: Material) -> MeshInstance3D:

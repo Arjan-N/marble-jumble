@@ -31,6 +31,7 @@ const COURSES := {
 	"glacier": preload("res://scripts/course/glacier_fault_course.gd"),
 	"temple": preload("res://scripts/course/temple_run_course.gd"),
 	"river": preload("res://scripts/course/jungle_river_course.gd"),
+	"meltwater": preload("res://scripts/course/meltwater_course.gd"),
 }
 
 ## Where along the course to stand, one per section of Volcano Run. Pick one

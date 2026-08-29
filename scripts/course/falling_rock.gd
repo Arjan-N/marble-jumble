@@ -21,14 +21,20 @@ const LIFETIME := 8.0
 const COLOUR := Color(0.20, 0.11, 0.08)
 
 
-static func create() -> FallingRock:
+## `colour` so a course can say what its debris is made of. Volcano's rockfall is
+## basalt and takes the default; `MeltwaterCourse` calves ice off a serac wall,
+## and a brown sphere dropping out of a blue ice cliff reads as a bug rather than
+## as debris. Nothing but albedo changes — the mass, radius and physics material
+## are the issue-2 tuning and stay shared, because debris that deflects
+## differently per course is a physics difference wearing a paint job.
+static func create(colour := COLOUR) -> FallingRock:
 	var rock := FallingRock.new()
 	rock.name = "FallingRock"
-	rock._build()
+	rock._build(colour)
 	return rock
 
 
-func _build() -> void:
+func _build(colour: Color) -> void:
 	mass = MASS
 	continuous_cd = true
 
@@ -49,7 +55,7 @@ func _build() -> void:
 	mesh.radial_segments = 8
 	mesh.rings = 5
 	var material := StandardMaterial3D.new()
-	material.albedo_color = COLOUR
+	material.albedo_color = colour
 	material.roughness = 1.0
 	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	var visual := MeshInstance3D.new()
