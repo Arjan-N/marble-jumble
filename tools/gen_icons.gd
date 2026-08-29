@@ -16,8 +16,9 @@ func _init() -> void:
 
 	_save_scaled(src, 192, "res://assets/icons/app_icon_192.png")
 	_save_scaled(src, 256, "res://assets/icons/app_icon_256.png")
-	# Adaptive foreground: Android crops to a circle of ~66% of the 432px canvas,
-	# so the artwork is inset rather than filling the frame edge to edge.
+	# Adaptive foreground: the art is a full-bleed scene, so it fills the 432px
+	# canvas and Android's ~66% safe circle crops into it. Insetting it instead
+	# would float a visible square of artwork on the background field.
 	_save_adaptive_foreground(src, 432, "res://assets/icons/app_icon_adaptive_fg_432.png")
 	_save_background(src, 432, "res://assets/icons/app_icon_adaptive_bg_432.png")
 	quit()
@@ -28,22 +29,16 @@ func _save_scaled(src: Image, size: int, path: String) -> void:
 	img.save_png(ProjectSettings.globalize_path(path))
 
 func _save_adaptive_foreground(src: Image, size: int, path: String) -> void:
-	var inner := int(round(size * 0.66))
 	var img := src.duplicate() as Image
-	img.resize(inner, inner, Image.INTERPOLATE_LANCZOS)
-	var canvas := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	canvas.fill(Color(0, 0, 0, 0))
-	var off := (size - inner) / 2
-	canvas.blit_rect(img, Rect2i(Vector2i.ZERO, Vector2i(inner, inner)), Vector2i(off, off))
-	canvas.save_png(ProjectSettings.globalize_path(path))
+	img.resize(size, size, Image.INTERPOLATE_LANCZOS)
+	img.save_png(ProjectSettings.globalize_path(path))
 
 func _save_background(src: Image, size: int, path: String) -> void:
-	# Solid fill sampled from the frame at top-centre — the corners are
-	# transparent, and the ring left around the inset foreground should read as
-	# more of the icon's own border rather than as black.
+	# Solid fill sampled from the top-centre of the art. The full-bleed foreground
+	# covers this on a static launcher, but it still shows through during the
+	# parallax shift, so it should read as the icon's own sky rather than black.
 	var c := src.get_pixel(src.get_width() / 2, int(src.get_height() * 0.04))
-	# Darkened: the raw frame highlight is a near-pure yellow, far too loud as a
-	# full-bleed field behind the icon. Bronze reads as the frame's own shadow.
+	# Darkened so the field sits behind the artwork instead of competing with it.
 	c = Color(c.r * 0.45, c.g * 0.42, c.b * 0.30, 1.0)
 	var canvas := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	canvas.fill(c)
