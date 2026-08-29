@@ -1425,6 +1425,30 @@ func _apply_default_environment() -> void:
 	# does not allow. Ambient is what fills a canyon floor in reality too.
 	_environment.ambient_light_energy = 0.95
 	_environment.fog_enabled = false
+	# Reset alongside `fog_enabled`, not left where the last course put it. A
+	# course that tunes aerial perspective for its own haze must not hand the
+	# next one a fog that fades with depth on settings that course never chose.
+	_environment.fog_aerial_perspective = 0.0
+	_environment.fog_sun_scatter = 0.0
+
+	# Linear tone mapping was the default here for every course, and it is what
+	# made the render read as a pastel of itself: nothing rolls off, so a lit
+	# surface clips to a flat pale patch and the midtones sit in one narrow
+	# band. Filmic rolls the highlights and lets the midtones keep their colour.
+	# The same treatment the shop's marble row already gets — see
+	# `MarbleRowView._build_environment`.
+	_environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# High: the roll-off should start near the top of the range rather than pull
+	# the whole image down. Below about 3 the course loses real brightness.
+	_environment.tonemap_white = 4.0
+
+	# The direct antidote to the washed-out look, and near-free — it folds into
+	# the tonemap step rather than adding a pass. Deliberately small: this
+	# restores contrast a generated-geometry course loses to flat albedo, it is
+	# not a look. Past about 1.25 saturation the marbles start to read as neon.
+	_environment.adjustment_enabled = true
+	_environment.adjustment_saturation = 1.15
+	_environment.adjustment_contrast = 1.08
 
 	# Steeper and more square-on than the old 52/38. A low sun down a narrow
 	# trough puts one wall's shadow across most of the track; near midday the

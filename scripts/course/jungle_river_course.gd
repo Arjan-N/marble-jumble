@@ -357,6 +357,11 @@ const FOG_COLOUR := Color(0.44, 0.55, 0.50)
 ## dissolved, which pushes it back without turning the middle distance — where
 ## the trees the player actually reads are — into one flat green wall.
 const FOG_DENSITY := 0.006
+## How much of the fog is driven by depth rather than laid evenly over the whole
+## frame. Matches the jungle course, which arrived at 0.4 for the same reason:
+## it is enough to keep the far treeline hazy and little enough that the middle
+## distance does not snap back into full clarity and lose its sense of depth.
+const FOG_AERIAL := 0.4
 
 var _path: CoursePath
 var _shell: TerrainShell
@@ -1629,6 +1634,12 @@ func decorate_environment(environment: Environment, sun: DirectionalLight3D) -> 
 	# Even haze rather than a sun-facing glow: this is humidity between the
 	# trees, which has no direction to it.
 	environment.fog_sun_scatter = 0.0
+	# Without this the haze is applied at full strength to everything, near
+	# geometry included, and a grey-green wash over the banks a metre from the
+	# camera is most of why the course read as washed out. Aerial perspective
+	# ties the fog to depth instead, so the treeline still dissolves while the
+	# banks the player is actually reading keep their own colour.
+	environment.fog_aerial_perspective = FOG_AERIAL
 
 	sun.light_color = SUN_COLOUR
 

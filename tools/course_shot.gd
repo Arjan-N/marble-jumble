@@ -164,6 +164,11 @@ func _setup_environment() -> void:
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	environment.ambient_light_energy = 0.95
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.tonemap_white = 4.0
+	environment.adjustment_enabled = true
+	environment.adjustment_saturation = 1.15
+	environment.adjustment_contrast = 1.08
 
 	var world := WorldEnvironment.new()
 	world.environment = environment
