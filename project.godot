@@ -16,6 +16,8 @@ config/icon="res://assets/icons/app_icon.png"
 config/windows_native_icon="res://assets/icons/app_icon.ico"
 run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0, 0, 0, 1)
 
 [display]
 
