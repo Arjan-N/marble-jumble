@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/strip_icon_border.gd" id="1"]
+
+[node name="StripIconBorder" type="Node"]
+script = ExtResource("1")
