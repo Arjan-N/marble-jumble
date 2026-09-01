@@ -401,6 +401,116 @@ const FINISH_COLOUR := Color(0.92, 0.86, 0.42)
 ## eliminated by `fall_threshold_y`.
 const GLOW_BELOW := 22.0
 
+# --- The hall -----------------------------------------------------------------
+
+## The building the plate stands in.
+##
+## The plate is not the problem — the *nothing beside it* is. Every course in
+## the pool that still reads as a board held up in front of scenery reads that
+## way for the same reason `TerrainShell` was written to fix: the racing surface
+## has an edge, and past that edge is sky. `JungleRiverCourse` solves it by
+## cutting a trench, so the ground the marbles roll on and the ground the trees
+## stand on are one welded mesh.
+##
+## A trench is exactly wrong here. This course's whole premise is that the
+## terrain does nothing (see the class docs), and sinking the plate into a
+## valley would make the ground the most shaped thing on it. The factory
+## equivalent of a trench is a **building**: the plate is a raised casting deck
+## standing on a mill floor, with slag channels down either side of it and the
+## hall's walls beyond.
+##
+## ```text
+##  wall                                                              wall
+##  |‾‾‾‾‾‾‾‾‾‾|___                    plate                   ___|‾‾‾‾‾‾‾‾‾‾|
+##  |          mill floor  \___    ____|=========|____    ___/  mill floor   |
+##  |                          \__/                   \__/                   |
+##                            channel                channel
+##  |<------------------- one welded strip per side, no collider ----------->|
+## ```
+##
+## Same rule as `Landscape` and `TerrainShell`'s ground: **none of it collides**.
+## A marble that leaves the plate has to keep falling to `fall_threshold_y` —
+## catching it on a mill floor would turn every fall into a marble sitting still
+## beside the course forever, and falls are a real elimination here (the probe
+## runs 11/12). The channel is what it falls into, which at least makes the
+## elimination diegetic instead of a marble dropping off a shelf.
+##
+## Laterals are metres **outward from the plate's own edge**, so the hall
+## follows the plate as `WIDTH` varies rather than crossing it; heights are
+## relative to the plate surface at that point, kicker lift included. The last
+## pair repeats its lateral, which is the wall going straight up.
+const HALL_PROFILE := [
+	[0.0, 0.0],      ## the plate edge itself — welded, no seam
+	[1.7, -2.6],     ## down the side of the casting deck
+	[3.0, -2.8],     ## channel bottom
+	[4.4, -0.45],    ## back up to floor level
+	[7.0, -0.45],    ## mill floor
+	[7.0, 8.0],      ## wall
+]
+
+## One per gap in `HALL_PROFILE`. The channel bottom is the only lit thing down
+## there and it is unshaded, because it is meant to read as what is *in* the
+## channel rather than as a surface the sun found.
+const HALL_COLOURS := [
+	Color(0.19, 0.19, 0.21),
+	Color(0.42, 0.15, 0.05),
+	Color(0.22, 0.20, 0.20),
+	Color(0.30, 0.30, 0.32),
+	Color(0.35, 0.34, 0.36),
+]
+const HALL_GLOW_BAND := 1
+
+## Metres of course per row. Coarser than `MESH_STEP` because nothing here is
+## collided against and the only thing it has to follow is the kicker lift.
+const HALL_STEP := 2.0
+
+# --- Light --------------------------------------------------------------------
+
+## Lamp masts, standing on the mill floor rather than hanging from a ceiling —
+## there is no ceiling (see `HALL_PROFILE`), and a lamp floating on a drop rod
+## from nothing reads as a bug. A mast with a head overhanging the deck is what a
+## yard or a casting hall actually uses, and it needs nothing above it.
+##
+## They alternate sides, which is the point: a plate lit evenly is the flat grey
+## board the hall was built to stop it being. Alternating pools give the run a
+## rhythm and give every machine a lit side and a shadowed one.
+const LAMP_STEP := 13.0
+const LAMP_HEIGHT := 6.0
+const LAMP_REACH := 2.4
+const LAMP_COLOUR := Color(1.0, 0.80, 0.52)
+const LAMP_ENERGY := 3.4
+const LAMP_RANGE := 16.0
+const LAMP_LENS := Color(1.0, 0.88, 0.66)
+## The Quench Line's own lamps, cold against every other bay's warm — the one
+## span where the plate is wet steel rather than hot.
+const QUENCH_LAMP_COLOUR := Color(0.62, 0.86, 1.0)
+const QUENCH_LAMP_LENS := Color(0.74, 0.93, 1.0)
+
+## The Casting Pit, which is the one place on the course where the light has a
+## reason to come from below: the plate is cut through by the jump gap there and
+## what is under it is the same molten floor `GLOW_BELOW` already draws.
+const PIT_LIGHT_COLOUR := Color(1.0, 0.44, 0.12)
+const PIT_LIGHT_ENERGY := 3.2
+const PIT_LIGHT_RANGE := 30.0
+
+# --- Interior light -----------------------------------------------------------
+
+## No roof, and the walls stop at 8m for the same reason. `ChaseCamera`'s LOW
+## mode sits ~16m above the focus (30m at 32 degrees) and OVERHEAD twice that,
+## so a ceiling over the plate would be a ceiling between the camera and the
+## race. The hall is open to the sky and the *sky* is what has to stop looking
+## like daylight — hence a near-black one, low warm ambient and real fog, which
+## is also the only thing that makes the far end of a 340m straight fall away.
+const SKY_TOP := Color(0.05, 0.05, 0.07)
+const SKY_HORIZON := Color(0.16, 0.11, 0.09)
+const GROUND_HORIZON := Color(0.12, 0.09, 0.09)
+const AMBIENT_COLOUR := Color(0.52, 0.45, 0.42)
+const AMBIENT_ENERGY := 0.42
+const FOG_COLOUR := Color(0.19, 0.13, 0.11)
+const FOG_DENSITY := 0.012
+const SUN_COLOUR := Color(1.0, 0.90, 0.78)
+const SUN_ENERGY := 0.45
+
 var _path: CoursePath
 
 
@@ -413,6 +523,10 @@ func build() -> void:
 	_build_plate()
 	_build_kerbs()
 	_build_back_wall()
+	_build_hall()
+	_build_hall_end()
+	_build_lamps()
+	_build_pit_light()
 	_build_glow_floor()
 	_build_crossbelts()
 	_build_rams()
@@ -652,6 +766,220 @@ func _build_back_wall() -> void:
 		Vector3(_half_width_at(-RAMP_LENGTH) * 2.0, 2.4, 0.8),
 		STEEL_DARK,
 	)
+
+
+## One strip mesh per band per side, no colliders — see `HALL_PROFILE`.
+##
+## Built as bands rather than as one welded strip with vertex colours because
+## every other mesh on this course is a `material_override` on its own
+## `MeshInstance3D`, and five draws a side for the whole 384m hall is not worth
+## a second material path to save.
+func _build_hall() -> void:
+	for side: float in [-1.0, 1.0]:
+		for band in range(HALL_PROFILE.size() - 1):
+			_build_hall_band(side, band)
+
+
+func _build_hall_band(side: float, band: int) -> void:
+	var inner: Array = HALL_PROFILE[band]
+	var outer: Array = HALL_PROFILE[band + 1]
+
+	var rows := []
+	var s := -RAMP_LENGTH
+	while s < LENGTH + RUNOFF_LENGTH:
+		rows.append([_hall_point(s, side, inner), _hall_point(s, side, outer)])
+		s = minf(s + HALL_STEP, LENGTH + RUNOFF_LENGTH)
+	rows.append([
+		_hall_point(LENGTH + RUNOFF_LENGTH, side, inner),
+		_hall_point(LENGTH + RUNOFF_LENGTH, side, outer),
+	])
+
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for r in range(rows.size() - 1):
+		var near: Array = rows[r]
+		var far: Array = rows[r + 1]
+		tool.add_vertex(near[0])
+		tool.add_vertex(far[0])
+		tool.add_vertex(near[1])
+
+		tool.add_vertex(near[1])
+		tool.add_vertex(far[0])
+		tool.add_vertex(far[1])
+	tool.generate_normals()
+
+	var visual := MeshInstance3D.new()
+	visual.mesh = tool.commit()
+	visual.material_override = _hall_material(band)
+	# Both faces: the wall is a single plane and the camera passes it on the
+	# inside, but the channel is looked into from above at a raking angle and a
+	# back-face cull there flickers the far slope in and out as the path pitches.
+	add_child(visual)
+
+
+## A point on the hall section, in world space. `lateral` is metres outward from
+## the plate's *edge* on this side, `lift` metres above the plate surface there.
+func _hall_point(s: float, side: float, node: Array) -> Vector3:
+	var edge := _half_width_at(s) + OVERHANG
+	return _frame_at(s) * Vector3(
+		side * (edge + float(node[0])),
+		_kicker_lift(s) + float(node[1]),
+		0.0,
+	)
+
+
+func _hall_material(band: int) -> StandardMaterial3D:
+	var colour: Color = HALL_COLOURS[band]
+	if band == HALL_GLOW_BAND:
+		var glow := StandardMaterial3D.new()
+		glow.albedo_color = colour
+		glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow.cull_mode = BaseMaterial3D.CULL_DISABLED
+		return glow
+
+	var material := _material(colour)
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+## The wall that closes the hall behind the start line.
+##
+## `_build_back_wall` is the 2.4m block the field is released against; this is
+## the building's own end, spanning the whole section from mill floor to wall
+## height. Without it the camera's opening shot — which sits behind and above the
+## start — looked down an unbroken floor that simply stopped.
+func _build_hall_end() -> void:
+	var s := -RAMP_LENGTH - 2.0
+	var edge := _half_width_at(-RAMP_LENGTH) + OVERHANG
+	var outer: Array = HALL_PROFILE[HALL_PROFILE.size() - 1]
+	var floor_y: float = HALL_PROFILE[HALL_PROFILE.size() - 2][1]
+	var height: float = float(outer[1]) - floor_y
+
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3((edge + float(outer[0])) * 2.0, height, 0.6)
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = _material(HALL_COLOURS[HALL_COLOURS.size() - 1].darkened(0.25))
+	visual.transform = _frame_at(s).translated_local(Vector3(0.0, floor_y + height * 0.5, 0.0))
+	add_child(visual)
+
+	# A lit doorway in it, because a blank wall gives the eye nothing to judge
+	# the hall's size against and this is the only thing in the shot at that
+	# moment that says "building".
+	var door := BoxMesh.new()
+	door.size = Vector3(3.2, 4.0, 0.2)
+	var door_visual := MeshInstance3D.new()
+	door_visual.mesh = door
+	var door_material := StandardMaterial3D.new()
+	door_material.albedo_color = LAMP_LENS.darkened(0.35)
+	door_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	door_visual.material_override = door_material
+	door_visual.transform = _frame_at(s).translated_local(
+		Vector3(edge + 4.0, floor_y + 2.0, -0.4)
+	)
+	add_child(door_visual)
+
+
+## Lamp masts down the mill floor, alternating sides. See `LAMP_STEP`.
+func _build_lamps() -> void:
+	var s := -RAMP_LENGTH + 6.0
+	var index := 0
+	while s < LENGTH + RUNOFF_LENGTH:
+		_add_lamp(s, -1.0 if index % 2 == 0 else 1.0, _lamp_is_cold(s))
+		s += LAMP_STEP
+		index += 1
+
+
+## The Quench Line, and only it. `PIT_END`..`QUENCH_END` in course fractions.
+func _lamp_is_cold(s: float) -> bool:
+	var fraction := s / LENGTH
+	return fraction > PIT_END and fraction < QUENCH_END
+
+
+func _add_lamp(s: float, side: float, cold: bool) -> void:
+	var edge := _half_width_at(s) + OVERHANG
+	var floor_y: float = HALL_PROFILE[HALL_PROFILE.size() - 2][1]
+	var mast_lateral := side * (edge + 4.8)
+	var frame := _frame_at(s)
+	var lift := _kicker_lift(s)
+	var mast_height := LAMP_HEIGHT - floor_y
+
+	var mast := BoxMesh.new()
+	mast.size = Vector3(0.22, mast_height, 0.22)
+	var mast_visual := MeshInstance3D.new()
+	mast_visual.mesh = mast
+	mast_visual.material_override = _material(GANTRY_COLOUR.darkened(0.3))
+	mast_visual.transform = frame.translated_local(
+		Vector3(mast_lateral, lift + floor_y + mast_height * 0.5, 0.0)
+	)
+	add_child(mast_visual)
+
+	# Beside the course, never over it. An earlier version carried the head in on
+	# a boom to put the pool on the racing line, and every lamp then crossed the
+	# frame overhead — fourteen bars sliding through the shot on top of the
+	# gantries the hammers already need. The head sits over the slag channel
+	# instead, outboard of the kerb, and the light rakes across the plate from the
+	# side rather than dropping onto it.
+	var head_lateral := side * (edge + LAMP_REACH)
+
+	var bracket := BoxMesh.new()
+	bracket.size = Vector3(absf(mast_lateral - head_lateral), 0.16, 0.16)
+	var bracket_visual := MeshInstance3D.new()
+	bracket_visual.mesh = bracket
+	bracket_visual.material_override = _material(GANTRY_COLOUR.darkened(0.3))
+	bracket_visual.transform = frame.translated_local(
+		Vector3((mast_lateral + head_lateral) * 0.5, lift + LAMP_HEIGHT + 0.1, 0.0)
+	)
+	add_child(bracket_visual)
+
+	var head := BoxMesh.new()
+	head.size = Vector3(1.1, 0.34, 0.8)
+	var head_visual := MeshInstance3D.new()
+	head_visual.mesh = head
+	head_visual.material_override = _material(GANTRY_COLOUR.darkened(0.15))
+	head_visual.transform = frame.translated_local(
+		Vector3(head_lateral, lift + LAMP_HEIGHT, 0.0)
+	)
+	add_child(head_visual)
+
+	# The lens is a separate unshaded face under the head: the light itself is
+	# invisible, and without something bright where it comes from the pool on the
+	# plate has no source.
+	var lens := BoxMesh.new()
+	lens.size = Vector3(0.9, 0.06, 0.62)
+	var lens_visual := MeshInstance3D.new()
+	lens_visual.mesh = lens
+	var lens_material := StandardMaterial3D.new()
+	lens_material.albedo_color = QUENCH_LAMP_LENS if cold else LAMP_LENS
+	lens_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lens_visual.material_override = lens_material
+	lens_visual.transform = frame.translated_local(
+		Vector3(head_lateral, lift + LAMP_HEIGHT - 0.2, 0.0)
+	)
+	add_child(lens_visual)
+
+	var light := OmniLight3D.new()
+	light.light_color = QUENCH_LAMP_COLOUR if cold else LAMP_COLOUR
+	light.light_energy = LAMP_ENERGY
+	light.omni_range = LAMP_RANGE
+	light.transform = frame.translated_local(
+		Vector3(head_lateral, lift + LAMP_HEIGHT - 0.3, 0.0)
+	)
+	add_child(light)
+
+
+## Two lights in the Casting Pit's gap, under the plate, throwing up through it.
+func _build_pit_light() -> void:
+	var hole := _jump_span()
+	for s: float in [hole.x - 1.0, hole.y + 1.0]:
+		var light := OmniLight3D.new()
+		light.light_color = PIT_LIGHT_COLOUR
+		light.light_energy = PIT_LIGHT_ENERGY
+		light.omni_range = PIT_LIGHT_RANGE
+		light.transform = _frame_at(s).translated_local(
+			Vector3(0.0, _kicker_lift(s) - 2.6, 0.0)
+		)
+		add_child(light)
+
 
 
 # --- Machines -----------------------------------------------------------------
@@ -950,6 +1278,43 @@ func _material(colour: Color) -> StandardMaterial3D:
 
 
 # --- Course interface ---------------------------------------------------------
+
+
+## Night, indoors-ish, and lit mostly by what the foundry itself is doing.
+##
+## This course had no `decorate_environment` at all — every other course in the
+## pool overrides it and this one inherited `race_manager`'s default blue sky
+## and bright sun, which is most of why a plate with machines on it read as a
+## board floating in daylight. The sky goes near-black so the hall's walls have
+## something to stand against, ambient drops to a warm fill, and fog is switched
+## on (the default leaves it off) so a 340m straight ends in haze rather than in
+## a clean horizon line.
+func decorate_environment(environment: Environment, sun: DirectionalLight3D) -> void:
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = SKY_TOP
+	sky_material.sky_horizon_color = SKY_HORIZON
+	sky_material.ground_bottom_color = SKY_TOP
+	sky_material.ground_horizon_color = GROUND_HORIZON
+
+	var sky := Sky.new()
+	sky.sky_material = sky_material
+	environment.sky = sky
+
+	# Colour, not sky: an `AMBIENT_SOURCE_SKY` fill off a near-black sky leaves
+	# the plate unreadable, and section 2.5 wants every marble legible.
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = AMBIENT_COLOUR
+	environment.ambient_light_energy = AMBIENT_ENERGY
+
+	environment.fog_enabled = true
+	environment.fog_light_color = FOG_COLOUR
+	environment.fog_density = FOG_DENSITY
+	# Some scatter, unlike the jungle's flat humidity: this is meant to be smoke
+	# lit from underneath by the casting pit, which does have a direction.
+	environment.fog_sun_scatter = 0.3
+
+	sun.light_color = SUN_COLOUR
+	sun.light_energy = SUN_ENERGY
 
 
 func fall_threshold_y() -> float:
