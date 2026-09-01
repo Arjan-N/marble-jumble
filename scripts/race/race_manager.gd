@@ -93,11 +93,17 @@ const PLAYER_NAME := "You"
 ## Some falls remain — plausible for an obstacle course, matching what the
 ## other pool courses already show — not a stall. Re-run
 ## `tools/probe_stall.gd` first if this course misbehaves again.
+##
+## **Temporarily cut to three courses (2026-09-01), on request:** Jungle River,
+## Meltwater Channel and Foundry Floor. The other seven are commented out below
+## rather than deleted — uncomment them to put the full pool back. Note there is
+## no `TerrainShell` factory course yet;
+## Foundry Floor, the flat machinery plate, is standing in as "the factory one".
 const COURSE_POOL: Array[GDScript] = [
-	preload("res://scripts/course/slope_course.gd"),
-	preload("res://scripts/course/jungle_course.gd"),
-	preload("res://scripts/course/orbital_course.gd"),
-	preload("res://scripts/course/volcano_course.gd"),
+	# preload("res://scripts/course/slope_course.gd"),
+	# preload("res://scripts/course/jungle_course.gd"),
+	# preload("res://scripts/course/orbital_course.gd"),
+	# preload("res://scripts/course/volcano_course.gd"),
 	preload("res://scripts/course/foundry_course.gd"),
 	# Glacier Fault is written (geometry + friction pass, no ice shader or
 	# painted backdrop yet) but not probe-verified: `tools/probe_glacier_fault.gd`
@@ -111,13 +117,13 @@ const COURSE_POOL: Array[GDScript] = [
 	# Leave commented out until the probe issue is fixed and a clean run
 	# confirms no stalls in Fissure Bend. Temporarily enabled below for manual
 	# playtesting — revert before shipping if the probe still hasn't run.
-	preload("res://scripts/course/glacier_fault_course.gd"),
+	# preload("res://scripts/course/glacier_fault_course.gd"),
 	# Temple Run: probe-verified with `tools/probe_course.tscn`
 	# (MJ_COURSE=temple) — 12/12 finish, no stalls, no falls. Winner at ~27s
 	# and the sixth finisher at ~29s, inside DECISIONS.md's 20-30s target but
 	# at the top of it, so this is the first course to shorten if race length
 	# gets tuned.
-	preload("res://scripts/course/temple_run_course.gd"),
+	# preload("res://scripts/course/temple_run_course.gd"),
 	# Jungle River: the first course built on `TerrainShell` — the racing surface
 	# is the floor of a trench cut into continuous terrain rather than a ribbon
 	# with scenery beside it. Probe-verified with `tools/probe_course.tscn`
@@ -130,7 +136,14 @@ const COURSE_POOL: Array[GDScript] = [
 	# courses this long is roughly four minutes of racing, so if the pool ever
 	# picks this three times the round length is the thing to look at first.
 	preload("res://scripts/course/jungle_river_course.gd"),
-	preload("res://scripts/course/course_builder.gd"),
+	# Meltwater Channel: the second `TerrainShell` course. Probe-verified with
+	# `tools/probe_course.tscn` (MJ_COURSE=meltwater) — 11/12 finish, no stalls,
+	# one fall at t=53.3 near the crevasse jump. Winner at ~71s, last finisher
+	# at ~92s, so it is the second course outside `DECISIONS.md`'s 20-30s
+	# window, alongside Jungle River. Curve is 464m, longer than the 420m its
+	# header claims. Added for playtesting — see the class docs before shipping.
+	preload("res://scripts/course/meltwater_course.gd"),
+	# preload("res://scripts/course/course_builder.gd"),
 ]
 
 enum Phase { SETTLING, RACING, COMPLETE }
