@@ -24,15 +24,22 @@ extends Camera3D
 ## touch `race_manager.gd` and the `.uid`, and make reverting a bigger edit than
 ## deleting the mode.
 ##
-## Press **C** in a running build to cycle modes mid-race.
+## `Mode.WIDE` is `Mode.LOW` with a 34-degree lens instead of 26 and the rig pulled
+## in to match. It is the default as of 2026-09-01: the narrow lens was why so much
+## of every course's scenery was never on screen. `Mode.LOW` is kept on the cycle
+## unchanged, so the old framing is one keypress away. See `WIDE_FOV`.
+##
+## Press **C** in a running build to cycle modes mid-race, or set `MJ_CAM`
+## (`chase`, `overhead`, `low`, `wide`) to start in one — which is the only way to
+## get a recorded run in a mode other than the default.
 
-enum Mode { CHASE, OVERHEAD, LOW }
+enum Mode { CHASE, OVERHEAD, LOW, WIDE }
 
-## What a fresh camera starts in. `Mode.LOW` is the approved gameplay camera —
-## it shows more of the course than `Mode.OVERHEAD` at a shallower, less
-## top-down angle. Set to `Mode.CHASE` to get the original locked behaviour
-## back without deleting anything.
-const DEFAULT_MODE := Mode.LOW
+## What a fresh camera starts in. `Mode.WIDE` is the approved gameplay camera —
+## `Mode.LOW`'s rig and framing behind a wider lens, so a course's own scenery is
+## in shot. Set to `Mode.LOW` for the previous default, or `Mode.CHASE` for the
+## original locked behaviour; nothing has been deleted.
+const DEFAULT_MODE := Mode.WIDE
 
 const POSITION_SMOOTHING := 4.0
 const AIM_SMOOTHING := 6.0
@@ -136,6 +143,54 @@ const LOW_DISTANCE_FAST := 38.0
 const LOW_FOV := 26.0
 const LOW_LEAD := 4.0
 
+# --- Mode.WIDE (try) -----------------------------------------------------------
+
+## `Mode.LOW`'s rig with a wider lens, and nothing else changed.
+##
+## Every course in the pool has scenery that is never seen, and the cause is this
+## lens rather than the art. `JungleKit` found it first — its band constants
+## exist because a convincing jungle rendered almost entirely off-camera — and
+## `IceKit`, `Landscape`, `TerrainShell`, `JungleRiverCourse` and
+## `MeltwaterCourse` all carry a version of the same note. The fix each time was
+## to drag the props inwards to suit a 26-degree frame, which is the lens driving
+## the art, and it runs out: the banks of a trench and the walls of a hall cannot
+## come inwards without narrowing the course itself.
+##
+## 34 degrees is `CHASE_FOV` reused rather than a new number picked — the value
+## `DECISIONS.md` locked for the original camera. It widens the frame by about a
+## third at every distance: roughly ten metres either side of the focus instead
+## of seven and a half, and about thirty out at the far end of the visible course
+## instead of twenty-two. That is the difference between a bank crest being
+## off-camera and being the flank of the shot.
+##
+## **The default since 2026-09-01**, on Arjan's call after comparing the two on the
+## same race. `Mode.LOW` stays on the `C` cycle unchanged, so the old framing is
+## one keypress away — the same way `Mode.OVERHEAD` was run. See `docs/CAMERA_SPIKE.md`.
+##
+## Pitch, lead and the speed pull-back are still `Mode.LOW`'s own constants, so
+## everything already learned about framing under LOW still holds; the lens and the
+## distance are the only things that move, and they move together.
+const WIDE_FOV := 34.0
+
+## Closer than `LOW_DISTANCE`, and this is the half of the mode that stops it
+## feeling like watching from across the room.
+##
+## A wider lens at an unchanged distance shrinks everything in frame by the ratio
+## of the two tangents — every marble a third smaller, the player's included, and
+## more bare ground around them. The first version did exactly that and it read
+## as detachment: the extra scenery arrived at the cost of the race being the
+## subject, which `PROJECT.md` section 2.5 does not allow.
+##
+## `tan(13°) / tan(17°)` is 0.755, so a rig 0.755 as far away puts the marbles
+## back at precisely the size `Mode.LOW` renders them. What that does *not* undo
+## is the widening: frame width at a given point scales with that point's
+## distance from the lens, so ground near the focus is framed as before while
+## everything further up-course still comes in about a third wider. Near-field
+## detail also sweeps past faster from closer in, which is the wide-angle look —
+## more involved than LOW, not less.
+const WIDE_DISTANCE := 23.0
+const WIDE_DISTANCE_FAST := 29.0
+
 # --- Finish spectating ---------------------------------------------------------
 
 ## Where the camera goes once the player's own run is over.
@@ -178,8 +233,27 @@ var _initialised := false
 static func create() -> ChaseCamera:
 	var camera := ChaseCamera.new()
 	camera.name = "ChaseCamera"
-	camera.set_mode(DEFAULT_MODE)
+	camera.set_mode(_starting_mode())
 	return camera
+
+
+## `DEFAULT_MODE`, unless `MJ_CAM` names another one.
+##
+## Same convention as `MJ_COURSE` and `MJ_STATION`: the only way to compare two
+## framings of the same course is to record the same race twice, and pressing `C`
+## is not available to a `--write-movie` run. Unset or unrecognised leaves the
+## default alone, so nothing about a normal build changes.
+static func _starting_mode() -> Mode:
+	match OS.get_environment("MJ_CAM").to_lower():
+		"chase":
+			return Mode.CHASE
+		"overhead":
+			return Mode.OVERHEAD
+		"low":
+			return Mode.LOW
+		"wide":
+			return Mode.WIDE
+	return DEFAULT_MODE
 
 
 func _ready() -> void:
@@ -207,6 +281,9 @@ func set_mode(value: Mode) -> void:
 		Mode.LOW:
 			keep_aspect = KEEP_WIDTH
 			fov = LOW_FOV
+		Mode.WIDE:
+			keep_aspect = KEEP_WIDTH
+			fov = WIDE_FOV
 
 	# The debug mode cycle (C) must not undo the wider finish lens mid-spectate.
 	if _watching_finish:
@@ -220,6 +297,8 @@ func cycle_mode() -> void:
 		Mode.OVERHEAD:
 			set_mode(Mode.LOW)
 		Mode.LOW:
+			set_mode(Mode.WIDE)
+		Mode.WIDE:
 			set_mode(Mode.CHASE)
 
 
@@ -231,6 +310,8 @@ func mode_name() -> String:
 			return "overhead"
 		Mode.LOW:
 			return "low"
+		Mode.WIDE:
+			return "wide"
 	return ""
 
 
@@ -284,10 +365,18 @@ func _physics_process(delta: float) -> void:
 			aim = marble_position + travel * LEAD_SECONDS
 			desired = marble_position - direction * CHASE_DISTANCE
 			desired.y = maxf(marble_position.y, aim.y) + CHASE_HEIGHT
-		Mode.OVERHEAD, Mode.LOW:
+		Mode.OVERHEAD, Mode.LOW, Mode.WIDE:
+			# `Mode.WIDE` is `Mode.LOW`'s pitch and lead with its own lens and its
+			# own distance — the two are one lever, not two (see `WIDE_DISTANCE`).
 			var pitch := OVERHEAD_PITCH if mode == Mode.OVERHEAD else LOW_PITCH
-			var dist_calm := OVERHEAD_DISTANCE if mode == Mode.OVERHEAD else LOW_DISTANCE
-			var dist_fast := OVERHEAD_DISTANCE_FAST if mode == Mode.OVERHEAD else LOW_DISTANCE_FAST
+			var dist_calm := LOW_DISTANCE
+			var dist_fast := LOW_DISTANCE_FAST
+			if mode == Mode.OVERHEAD:
+				dist_calm = OVERHEAD_DISTANCE
+				dist_fast = OVERHEAD_DISTANCE_FAST
+			elif mode == Mode.WIDE:
+				dist_calm = WIDE_DISTANCE
+				dist_fast = WIDE_DISTANCE_FAST
 			var lead_metres := OVERHEAD_LEAD if mode == Mode.OVERHEAD else LOW_LEAD
 
 			# The focus rides the course centreline ahead of the marble, not the
