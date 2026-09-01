@@ -980,7 +980,10 @@ func _build_stream() -> void:
 
 	var water := StandardMaterial3D.new()
 	water.albedo_color = JungleKit.WATER
-	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Depth pre-pass, not plain alpha — see the note on the same line in
+	# `MeltwaterCourse`. The plane reaches into both banks deliberately, and plain
+	# alpha writes no depth, so it drew over the bank rather than into it.
+	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 	water.roughness = 0.25
 	water.metallic = 0.0
 	water.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX

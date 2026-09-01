@@ -95,6 +95,14 @@ const RUNOFF_LENGTH := 32.0
 ## fixtures and the scenery all reference them. Three copies of 0.44 in three
 ## tables is how a feature and its dressing drift apart.
 const ISLAND_AT := 0.17
+## The braid. The channel splits around the ice island and runs as two lanes
+## until it closes again ahead of the narrows.
+##
+## `FORK_FROM` is where the bed starts widening to carry two lanes, not where the
+## split begins — the island at `ISLAND_AT` is the fork head, and the ridge grows
+## out of its down-course face.
+const FORK_FROM := 0.15
+const FORK_TO := 0.225
 const NARROW_FROM := 0.26
 const NARROW_TO := 0.38
 const GATE_AT := 0.44
@@ -215,10 +223,14 @@ const ROLL := [
 ## it is why the widths and the features line up the way they do.
 const WIDTH := [
 	[0.08, 6.0],       ## Spillway — twelve marbles, room to spread.
-	[0.14, 5.2],
-	[ISLAND_AT, 6.5],  ## Island split: both lines round it have to be real racing
-	                   ## lines, not one gap and one squeeze.
-	[0.23, 5.6],
+	[FORK_FROM, 6.2],  ## Opening out to carry two lanes.
+	[ISLAND_AT, 6.5],  ## Fork head. Held at the camera's ceiling for the whole
+	                   ## braid: 13m of bed less the 2.4m ridge leaves 5.3m a
+	                   ## lane, which is three marbles abreast on each. Both
+	                   ## lines have to be real racing lines, not one gap and
+	                   ## one squeeze.
+	[FORK_TO, 6.5],
+	[0.245, 5.6],      ## Closed again, and back to one channel.
 	[NARROW_FROM, 4.4],
 	[0.32, 3.8],       ## The narrows, at their tightest.
 	[NARROW_TO, 3.9],
@@ -322,10 +334,228 @@ const WATER_DEPTH := 0.5
 ## both of them real. A block that left one gap wide enough for the field would
 ## be scenery.
 const ISLAND_SIZE := Vector3(2.1, 2.6, 4.2)
-const ISLAND_TRAIL := [
-	[0.192, -3.2, 1.4],
-	[0.208, 3.0, 1.3],
+
+## The medial ridge: the island's down-course tail, and what makes the split a
+## braid rather than a single obstacle to steer round.
+##
+## It replaces the two offset blocks that used to sit at 0.192 and 0.208. Those
+## kept the two lines apart for about seven metres and then let them merge; a
+## marble that took the left of the island was back in the middle before the
+## choice had cost or paid anything. A continuous ridge means the lane you enter
+## is the lane you are in until `FORK_TO`.
+##
+## Height is set against the marble, not the eye: 1.15m to a 0.45m marble is not
+## climbable at racing speed, and it is still low enough to see the far lane over
+## — which matters, because a player who cannot see the lane they didn't take has
+## no way to learn they chose wrong.
+const RIDGE_HALF_WIDTH := 1.2
+const RIDGE_HEIGHT := 1.15
+const RIDGE_STEP := 2.2
+
+## The left lane's floor: polished channel ice laid over the shell's snow.
+##
+## `TerrainShell.centre_friction` cannot express this. That is one strip down the
+## middle of the bed, and the middle of the bed is exactly where the ridge now
+## stands — left to itself the braid would be two lanes of `FRICTION` snow with
+## the fast surface buried under the divide, which is the whole thesis of the
+## course thrown away at the one place it should bite hardest.
+##
+## So the fast line is laid as its own collider, and it goes on the **left**. The
+## channel is drifting right here (`HEADING` 4 degrees at `NARROW_FROM`, 8 by
+## 0.32), so the right lane is already the shorter line into the narrows. Putting
+## the ice there too would make one lane better in both ways and the choice would
+## not be a choice. Left is longer and fast, right is shorter and slow.
+const LANE_SIDE := -1.0
+## Inset from the ridge and from the verge, so the strip's own edges are never
+## the thing a marble catches on entry.
+const LANE_INSET := 0.35
+## Thin enough to read as a surface rather than a kerb: 0.05m of lip against a
+## 0.45m marble.
+const LANE_THICKNESS := 0.10
+
+# --- Snow bridges -------------------------------------------------------------
+
+## Two snow bridges across the crevasse, and the course's second moving hazard.
+##
+## The crevasse already asks a question — carry enough speed to cross 3.0m — and
+## the class docs are explicit that failing it costs everything you had rather
+## than eliminating you. The bridges do not change that. They add a second, worse
+## answer: a span that holds, until it doesn't.
+##
+## `[lateral, width]`. Both sit off centre with a gap between them, so the
+## straight-line fast approach still has to jump and only a marble that steers
+## for a bridge gets to use one.
+const BRIDGES := [
+	[-2.05, 1.9],
+	[2.05, 1.9],
 ]
+## How long a bridge stands after the first marble touches it. Long enough for
+## the marble that committed to get across, short enough that the pack behind it
+## does not.
+##
+## This is the whole design in one number. A fuse that outlives the field is
+## scenery; a fuse that drops the marble that triggered it is a punishment for
+## being in front, which is backwards — the leader earned the crossing.
+const BRIDGE_FUSE := 0.45
+const BRIDGE_THICKNESS := 0.22
+## Chunks thrown when a span goes. Debris, not hazard: they exist so a collapse
+## behind you is something you can see happen.
+const BRIDGE_DEBRIS := 3
+
+# --- Ice boulders -------------------------------------------------------------
+
+## Two loose boulders that run the course with the field.
+##
+## Not `FallingRock`: that is debris with a `LIFETIME`, and these have to survive
+## the whole race. Not `Marble` either — a `Marble` is a racer, and `RaceManager`
+## would have to be taught that two of its bodies are not in the running.
+## A plain `RigidBody3D` is neither, which is exactly right.
+##
+## Mass 3.4 against a marble's 1.0, radius 0.95 against 0.45. Heavy enough that
+## being hit by one is an event and light enough that it is still pushed around
+## by a pack of twelve — a boulder that cannot be moved is a rolling wall, and
+## the point is that it is loose.
+const BOULDER_RADIUS := 0.95
+const BOULDER_MASS := 3.4
+## Flanking the grid rather than in it: the field spawns six abreast at 1.8m
+## spacing, so it spans ±4.5 and anything inside that displaces a racer at the
+## line. Behind the barrier with everyone else, released by the same drop.
+## On the grid, in the gaps between the columns rather than out by the bank.
+##
+## The first version put them at ±5.0 to keep them clear of the field, which kept
+## them clear of the race as well: they hugged the margin for 464m and nobody
+## ever touched one. The grid is six abreast at 1.8m spacing, so the columns sit
+## at ±0.9, ±2.7 and ±4.5 — ±3.6 is exactly between two of them and displaces
+## nobody.
+const BOULDERS := [
+	[-3.6, -1.6],
+	[3.6, -2.4],
+]
+
+## Boulders calved off the banks mid-race, so the second half has them too.
+##
+## The grid pair is gone by a third of the way down — a heavy sphere on polished
+## ice outruns a marble — and a hazard that only exists at the start is a hazard
+## the race has forgotten by the sweeper.
+##
+## ## Placed against the field, not against the course
+##
+## The first version dropped these into two fixed bands on a timer, from nine
+## metres up, regardless of where anybody was. Both halves of that were wrong.
+##
+## `ChaseCamera.Mode.LOW` sits **down-course of the marble and looks back up it**.
+## So the visible frame is the ground *behind* the leader, and a boulder placed
+## ahead of the field is behind the camera: it exists, it is rolling, and nobody
+## sees it until they hit it. Anything meant to be watched has to arrive level
+## with the field or slightly up-course of it.
+##
+## And a boulder that materialises above the channel is a spawn. One that comes
+## down the bank is a calving — same body, same physics, and the difference is
+## entirely in where it starts and which way it is already moving.
+##
+## So calving is now measured from the front of the field: a short way ahead, off
+## the bank face, rolling inwards. It crosses the channel in front of whoever is
+## leading, which is on camera for everybody behind them.
+const CALVING_INTERVAL_MIN := 5.0
+const CALVING_INTERVAL_MAX := 9.0
+## How far down-course of the leading marble a boulder comes in.
+##
+## Small, and it has to be. At 20m the boulder is off the top of the frame before
+## it reaches the bed; at 4m it lands on the leader with no warning at all. Eight
+## metres is about a second of travel at racing speed — enough to see it coming
+## down the bank, not enough to steer round it for free.
+const CALVING_LEAD := 8.0
+## Where on the bank face it lets go: 0 is the verge, 1 the crest.
+const CALVING_HEIGHT := 0.72
+## Pushed off the wall rather than merely dropped, so it crosses the bed instead
+## of settling at the foot of the bank it came from.
+const CALVING_INWARD := 3.4
+## Given some of the course's own speed on release, so it does not read as a
+## bowling ball rolled across a moving race.
+const CALVING_ALONG := 4.5
+## Calving is confined to the middle of the course. Before this the field is
+## still packed and a boulder through it is a pile-up; after it, there is not
+## enough course left to recover from one.
+const CALVING_FROM := 0.30
+const CALVING_TO := 0.90
+
+# --- Slush ---------------------------------------------------------------------
+
+## Patches of wet slush lying on the bed: the answer to a field that only ever
+## spreads out.
+##
+## Everything else on this course rewards speed. Ice rewards it, the fast lane
+## rewards it, and no feature anywhere costs a leader more than a straggler — so
+## the field can only diverge, which is exactly what the 39-second spread was.
+## Random hazards do not fix that; they hit everyone equally and add variance
+## without compressing anything.
+##
+## ## Why this is not the ripples it replaces
+##
+## The first version of this was sastrugi — transverse wind ridges, 0.09m high.
+## They compressed the field exactly as intended (39 seconds of spread down to
+## 17) and they were **horrible to race**: every band was a rattle, and a marble
+## crossing four of them spent the straights being bounced rather than driven.
+## A tax the player feels as noise is the wrong tax however well it works.
+##
+## Slush does the same arithmetic without touching the marble. It is flush with
+## the bed — no lip, no bump, nothing to skip off — and it costs speed by
+## friction alone. That is still speed-proportional in the way that matters: a
+## marble carrying 14 m/s into a patch loses far more of it than one arriving at
+## 8, because what it gives up is a fraction of what it has.
+##
+## It is also better looking. `MELT` over `CRYOCONITE` is the darkest thing on
+## the course, laid on the palest part of the bed, and it tells the player where
+## the slow ground is before they are in it — the same argument the fast lane
+## makes, in reverse.
+##
+## Bands avoid the fork, the narrows, the gate and the crevasse approach —
+## everywhere the course already asks a question — and the basin, where `BANK`
+## drops to 1.6 and a marble that loses its speed has nothing to reclaim it with.
+const SLUSH_BANDS := [
+	[0.055, 0.135],
+	[0.295, 0.375],
+	[0.505, 0.575],
+	[0.905, 0.955],
+]
+const SLUSH_STEP := 5.5
+## Half the length of one patch, along the course.
+const SLUSH_RUN := 1.9
+## Fraction of the bed one patch spans. Never the full width: slush wall to wall
+## is a toll every marble pays equally, and a patch that leaves a margin is a
+## line to be found.
+const SLUSH_SPAN := 0.40
+## Slower than the snow margins' 0.30, and the reason it can be: unlike the
+## margins this is not where a struggling marble ends up, it is on the racing
+## line where there is always something behind to push. The margin's floor
+## argument does not apply.
+const SLUSH_FRICTION := 0.46
+const SLUSH_THICKNESS := 0.12
+## How far the patch's top stands above the bed. Small enough not to be a step —
+## 15mm against a 0.45m marble — and non-zero so the collider is never coplanar
+## with the bed underneath it.
+const SLUSH_PROUD := 0.015
+
+# --- Ice arches ---------------------------------------------------------------
+
+## Remnant snow bridges spanning the channel overhead, well above marble height.
+##
+## Visual only, and the one thing here that a river cannot have. Both courses are
+## a trench seen through the same locked 26-degree lens, and everything that
+## fills the frame on either of them sits at or below the crest — so they compose
+## identically no matter how differently they are painted. An arch puts structure
+## across the *top* of the shot and gives the channel a roof line, which is the
+## cheapest large change available to how this course reads.
+##
+## Placed on straights where the span reads as a span rather than as a chord
+## across a corner.
+const ARCHES := [
+	[0.115, 5.6],
+	[0.335, 6.4],
+	[0.545, 5.9],
+	[0.865, 6.8],
+]
+const ARCH_THICKNESS := 1.5
 
 ## Ice shards protruding from the verges through the narrows.
 ## `[fraction, side, protrusion]` — how far each reaches in over the lip.
@@ -365,6 +595,28 @@ const ICEFALL_INTERVAL_MIN := 1.5
 const ICEFALL_INTERVAL_MAX := 3.4
 const ICEFALL_HEIGHT := 9.0
 
+## Where ice comes down. Four bands rather than the single 0.41-0.50 window.
+##
+## One band was 42m of a 464m course — nine percent — and the rest of the race
+## had nothing in it at all. The gate band stays where it was because the serac
+## towers announce it and that pairing is the course telling you what is coming;
+## the other three are placed under the icefield's own serac walls, so each one
+## has something overhead for the ice to have come off.
+const ICEFALL_BANDS := [
+	[0.20, 0.28],
+	[ICEFALL_FROM, ICEFALL_TO],
+	[0.58, 0.66],
+	[0.82, 0.90],
+]
+## Heavier than `FallingRock.MASS`'s 0.6.
+##
+## That figure is Volcano's, and it is tuned to "deflect without deciding a
+## race" — which on an ice course reads as no obstacle at all, because a marble
+## already sliding at 12 m/s barely notices six tenths of its own mass. At 1.1 a
+## block is slightly heavier than the marble it hits: it turns a line rather than
+## ending one, and it is still nothing like the boulders.
+const ICEFALL_MASS := 1.1
+
 # --- Scenery ------------------------------------------------------------------
 
 const SCENERY_SEED := 20260829
@@ -383,7 +635,6 @@ const SCENERY_AFTER := 95.0
 const SKY_TOP := Color(0.12, 0.25, 0.47)
 const SKY_HORIZON := Color(0.82, 0.73, 0.62)
 const AMBIENT_COLOUR := Color(0.50, 0.62, 0.78)
-const AMBIENT_ENERGY := 0.55
 const SUN_COLOUR := Color(1.0, 0.89, 0.72)
 const FOG_COLOUR := Color(0.50, 0.60, 0.70)
 const FOG_DENSITY := 0.005
@@ -391,6 +642,33 @@ const FOG_DENSITY := 0.005
 ## crystals is the one atmospheric effect a glacier actually has, and it puts a
 ## warm glow down-sun that the geometry cannot supply.
 const FOG_SUN_SCATTER := 0.28
+
+## The sun's own angle, which this course had never actually set.
+##
+## `RaceManager._apply_default_environment` puts the sun at -68 degrees — near
+## midday — and every course before this one overrode only `light_color`. So the
+## low warm sun this entire palette is written for did not exist: the ice was
+## being lit from almost overhead, every face got the same value, and the result
+## was the flat even wash the class docs accuse `GlacierFaultCourse` of.
+##
+## 26 degrees is late afternoon. It is the single largest change to how this
+## course reads, and it costs one line, because the geometry was always shaped
+## for it — a channel cut into a plain has one bank lit and one in shade only if
+## something is raking across it.
+##
+## Yawed well off-axis so the light comes across the channel rather than down it.
+## Down-course light backlights every serac into the same silhouette and flattens
+## the skyline the mid band exists to build.
+const SUN_ANGLE := Vector3(-26.0, -54.0, 0.0)
+## Up from the default 1.15, because a low sun spreads the same energy over more
+## surface, and because the ambient here is deliberately dim.
+const SUN_ENERGY := 1.45
+## Up from 0.55. `RaceManager` learned this on the Canyon and wrote it down: a
+## raking sun puts one wall's shadow across the bed, and at a low ambient the
+## shaded half goes unreadable — which `PROJECT.md` section 2.5 does not allow.
+## Raised just enough to keep a marble legible in shadow without lifting the
+## blacks that make the cryoconite read as silt.
+const AMBIENT_SHADED := 0.72
 
 var _path: CoursePath
 var _shell: TerrainShell
@@ -405,12 +683,18 @@ func build() -> void:
 	_build_shell()
 	_build_back_wall()
 	_build_island()
+	_build_fork()
 	_build_pinch_shards()
 	_build_gate()
 	_build_crevasse()
+	_build_bridges()
 	_build_runoff_backstop()
+	_build_slush()
+	_build_arches()
 	_build_icefield()
 	_start_icefall()
+	_build_boulders()
+	_start_calving()
 
 
 # --- Path ---------------------------------------------------------------------
@@ -730,17 +1014,102 @@ func _build_island() -> void:
 		ISLAND_SIZE, 3, IceKit.ICE_BLUE
 	)
 
-	for entry: Array in ISLAND_TRAIL:
-		var at: float = entry[0] * LENGTH
-		var lateral: float = entry[1]
-		var scale: float = entry[2]
-		var trail := _frame_at(at)
-		_add_ice_block(
-			trail.translated_local(Vector3(lateral, ISLAND_SIZE.y * 0.30 * scale, 0.0)),
-			ISLAND_SIZE * scale * 0.52,
-			5 + int(entry[0] * 100.0) % 3,
-			IceKit.ICE_BLUE.lerp(IceKit.ICE_PALE, 0.35)
-		)
+
+## The braid: the medial ridge and the fast lane beside it.
+##
+## Both are built station by station along the same stride rather than as one
+## long box, because the channel is already turning here — `HEADING` reaches 4
+## degrees by `NARROW_FROM` — and a single box would cut the corner off the bed
+## and leave a wedge of ridge standing outside the lane it is meant to divide.
+func _build_fork() -> void:
+	var from := ISLAND_AT * LENGTH
+	var to := FORK_TO * LENGTH
+
+	var s := from
+	var index := 0
+	while s < to:
+		var span := minf(RIDGE_STEP, to - s)
+		var mid := s + span * 0.5
+		# Overlapped by a whisker. Convex hulls that merely touch leave a seam a
+		# marble at 7 m/s can find, and a ridge with a gap in it is a ridge the
+		# field discovers before the player does.
+		_add_ridge_segment(mid, span * 0.62, _ridge_taper(mid, from, to), index)
+		_add_lane_segment(mid, span * 0.55)
+		s += RIDGE_STEP
+		index += 1
+
+
+## The ridge's height at one station: full through the middle, eased to nothing
+## at both ends.
+##
+## The down-course end matters more than it looks. A ridge that stops at full
+## height is a 1.15m wall standing across the closing lanes exactly where the two
+## halves of the field are converging on each other, which is a pile-up rather
+## than a merge. Ramped away, the last two metres are something a marble rides
+## over if it has to.
+func _ridge_taper(s: float, from: float, to: float) -> float:
+	var ease_in := 4.0
+	var ease_out := 7.0
+	var head := clampf((s - from) / ease_in, 0.0, 1.0)
+	var tail := clampf((to - s) / ease_out, 0.0, 1.0)
+	return RIDGE_HEIGHT * minf(head, tail)
+
+
+func _add_ridge_segment(s: float, half_length: float, height: float, index: int) -> void:
+	if height < 0.05:
+		return
+	var frame := _frame_at(s)
+	_add_ice_block(
+		frame.translated_local(Vector3(0.0, height * 0.42, 0.0)),
+		Vector3(RIDGE_HALF_WIDTH, height * 0.62, half_length),
+		3 + index % 5,
+		IceKit.ICE_BLUE.lerp(IceKit.ICE_DEEP, 0.30)
+	)
+
+
+## One paving slab of the fast lane: polished ice laid on the snow, flush enough
+## to roll onto without a step.
+func _add_lane_segment(s: float, half_length: float) -> void:
+	var half := _half_width_at(s)
+	var inner := RIDGE_HALF_WIDTH + LANE_INSET
+	var outer := half - LANE_INSET
+	if outer <= inner:
+		return
+
+	var width := outer - inner
+	var centre := LANE_SIDE * (inner + width * 0.5)
+	var frame := _frame_at(s)
+
+	var body := StaticBody3D.new()
+	body.name = "FastLane"
+	body.transform = frame.translated_local(
+		Vector3(centre, -LANE_THICKNESS * 0.5, 0.0)
+	)
+	var surface := PhysicsMaterial.new()
+	surface.friction = CENTRE_FRICTION
+	surface.bounce = BOUNCE
+	body.physics_material_override = surface
+
+	var size := Vector3(width, LANE_THICKNESS, half_length * 2.0)
+	var shape := BoxShape3D.new()
+	shape.size = size
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	body.add_child(collider)
+
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	# Darker than anything either side of it. The friction split has to be
+	# legible before it is felt — see the class docs on ice that is not white.
+	visual.material_override = _ground_material(
+		IceKit.ICE_DEEP, IceKit.MELT, 0.10, 0.85, 0.2
+	)
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(visual)
+
+	add_child(body)
 
 
 ## Ice shards reaching in over the verge through the narrows.
@@ -813,10 +1182,312 @@ func _build_crevasse() -> void:
 	# round this put the meltwater a third of a metre *above* the ice.
 	water.transform = frame.translated_local(Vector3(0.0, -WATER_DEPTH, 0.0))
 	var material := _material(IceKit.MELT)
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Depth pre-pass, not plain alpha: this plane reaches sideways into both banks
+	# on purpose, and a blended material that writes no depth draws *over* the bank
+	# instead of being buried in it — a translucent sheet lying across the sides of
+	# the course, which is what `Mode.WIDE` made obvious by showing more bank.
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 	water.material_override = material
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(water)
+
+
+# --- Snow bridges -------------------------------------------------------------
+
+
+## Two spans across the crevasse that hold until something crosses them.
+##
+## The trigger is an `Area3D` sitting on the deck rather than contact on the
+## `StaticBody3D` itself, because a static body has no contact signal and giving
+## each span a `RigidBody3D` would mean two more sleeping bodies per race that
+## exist only to report being touched.
+func _build_bridges() -> void:
+	var wall_end := CREVASSE_S + CREVASSE_WALL
+	var span := CREVASSE_BED + CREVASSE_WALL
+	var centre := wall_end + CREVASSE_BED * 0.5
+	var frame := _frame_at(centre)
+
+	for entry: Array in BRIDGES:
+		var lateral: float = entry[0]
+		var width: float = entry[1]
+
+		var body := StaticBody3D.new()
+		body.name = "SnowBridge"
+		# At bed level, not at the crevasse floor: the deck carries on from the
+		# lip it springs off, which is what makes it read as a span rather than
+		# as a step down into the hole.
+		body.transform = frame.translated_local(
+			Vector3(lateral, -BRIDGE_THICKNESS * 0.5, 0.0)
+		)
+		var surface := PhysicsMaterial.new()
+		# Snow, not ice. A bridge you can carry full speed across is one nobody
+		# ever has to decide about.
+		surface.friction = FRICTION
+		surface.bounce = 0.02
+		body.physics_material_override = surface
+
+		var size := Vector3(width, BRIDGE_THICKNESS, span)
+		var shape := BoxShape3D.new()
+		shape.size = size
+		var collider := CollisionShape3D.new()
+		collider.shape = shape
+		body.add_child(collider)
+
+		var mesh := BoxMesh.new()
+		mesh.size = size
+		var visual := MeshInstance3D.new()
+		visual.mesh = mesh
+		visual.material_override = _material(IceKit.SNOW)
+		body.add_child(visual)
+
+		var trigger := Area3D.new()
+		trigger.name = "Trigger"
+		var trigger_shape := BoxShape3D.new()
+		# Standing proud of the deck, so it catches a marble rolling over rather
+		# than only one that has already sunk into the span.
+		trigger_shape.size = Vector3(width, 1.2, span)
+		var trigger_collider := CollisionShape3D.new()
+		trigger_collider.shape = trigger_shape
+		trigger_collider.position = Vector3(0.0, 0.7, 0.0)
+		trigger.add_child(trigger_collider)
+		trigger.body_entered.connect(_on_bridge_touched.bind(body))
+		body.add_child(trigger)
+
+		add_child(body)
+
+
+func _on_bridge_touched(body: Node3D, bridge: StaticBody3D) -> void:
+	if not (body is Marble) or not is_instance_valid(bridge):
+		return
+	if bridge.has_meta("collapsing"):
+		return
+	bridge.set_meta("collapsing", true)
+
+	var fuse := Timer.new()
+	fuse.name = "Fuse"
+	fuse.one_shot = true
+	fuse.timeout.connect(_collapse_bridge.bind(bridge))
+	bridge.add_child(fuse)
+	fuse.start(BRIDGE_FUSE)
+
+
+func _collapse_bridge(bridge: StaticBody3D) -> void:
+	if not is_instance_valid(bridge):
+		return
+
+	var at := bridge.global_transform
+	for i in BRIDGE_DEBRIS:
+		var chunk := FallingRock.create(IceKit.SNOW)
+		chunk.transform = at.translated_local(
+			Vector3(
+				randf_range(-0.6, 0.6),
+				randf_range(-0.2, 0.2),
+				randf_range(-1.2, 1.2)
+			)
+		)
+		add_child(chunk)
+
+	bridge.queue_free()
+
+
+# --- Slush ---------------------------------------------------------------------
+
+
+## Slush lying on the bed, band by band. See `SLUSH_BANDS` for why this is the
+## feature that answers the spread, and why it is not the ripples it replaces.
+func _build_slush() -> void:
+	var index := 0
+	for band: Array in SLUSH_BANDS:
+		var s: float = band[0] * LENGTH
+		var to: float = band[1] * LENGTH
+		while s < to:
+			_add_slush(s, index)
+			s += SLUSH_STEP * randf_range(0.75, 1.30)
+			index += 1
+
+
+func _add_slush(s: float, index: int) -> void:
+	var half := _half_width_at(s)
+	var frame := _frame_at(s)
+	# Drifting across the bed rather than centred, so consecutive patches never
+	# leave one clean lane down the middle of a whole band — the line through a
+	# band has to be steered, not just held.
+	var span := half * SLUSH_SPAN
+	var shift := sin(float(index) * 1.7) * (half - span) * 0.92
+
+	var body := StaticBody3D.new()
+	body.name = "Slush"
+	body.transform = frame.translated_local(
+		Vector3(shift, SLUSH_PROUD - SLUSH_THICKNESS * 0.5, 0.0)
+	)
+	var surface := PhysicsMaterial.new()
+	surface.friction = SLUSH_FRICTION
+	# Dead, unlike everything else on this course. Slush does not skitter.
+	surface.bounce = 0.0
+	body.physics_material_override = surface
+
+	var size := Vector3(span * 2.0, SLUSH_THICKNESS, SLUSH_RUN * 2.0)
+	var shape := BoxShape3D.new()
+	shape.size = size
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	body.add_child(collider)
+
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	visual.material_override = _ground_material(
+		IceKit.MELT, IceKit.CRYOCONITE, 0.18, 0.9, 0.25
+	)
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(visual)
+
+	add_child(body)
+
+
+# --- Ice arches ---------------------------------------------------------------
+
+
+## Remnant spans across the channel, overhead and non-colliding.
+##
+## No collider at all, deliberately. They sit `ARCHES[n][1]` metres up and a
+## marble never reaches them, so a collision body would be 464m of physics that
+## can only ever produce a bug — the icefield's own rule, applied to the one
+## piece of scenery that hangs over the racing line.
+func _build_arches() -> void:
+	for entry: Array in ARCHES:
+		var s: float = entry[0] * LENGTH
+		var height: float = entry[1]
+		var half := _half_width_at(s)
+		var frame := _ground_frame(s)
+
+		var reach := half + _shell.verge_width + _shell.bank_run
+
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(reach * 2.0, ARCH_THICKNESS, ARCH_THICKNESS * 2.2)
+		var visual := MeshInstance3D.new()
+		visual.name = "IceArch"
+		visual.mesh = mesh
+		visual.transform = frame.translated_local(Vector3(0.0, height, 0.0))
+		# Lit from below by nothing, so it reads as a silhouette against the sky
+		# — which is the whole job. Shadow casting stays *on*: the bar of shade it
+		# throws across the bed is how the player reads that it is there.
+		visual.material_override = _ground_material(
+			IceKit.ICE_BLUE, IceKit.ICE_DEEP, 0.14, 0.6, 0.4
+		)
+		add_child(visual)
+
+
+# --- Ice boulders -------------------------------------------------------------
+
+
+## Two loose boulders on the start grid, released with the field.
+func _build_boulders() -> void:
+	for entry: Array in BOULDERS:
+		var lateral: float = entry[0]
+		var back: float = entry[1]
+		_add_boulder(_frame_at(back), lateral, BOULDER_RADIUS)
+
+
+## Fresh boulders calving off the serac walls, on a timer, in front of the field.
+func _start_calving() -> void:
+	var timer := Timer.new()
+	timer.name = "Calving"
+	timer.one_shot = true
+	timer.timeout.connect(_on_calving_timeout.bind(timer))
+	add_child(timer)
+	timer.start(randf_range(CALVING_INTERVAL_MIN, CALVING_INTERVAL_MAX))
+
+
+func _on_calving_timeout(timer: Timer) -> void:
+	var front := _field_front()
+	var s := front + CALVING_LEAD
+	if front > 0.0 and s > CALVING_FROM * LENGTH and s < CALVING_TO * LENGTH:
+		_calve(s, 1.0 if randf() < 0.5 else -1.0)
+
+	if is_instance_valid(timer):
+		timer.start(randf_range(CALVING_INTERVAL_MIN, CALVING_INTERVAL_MAX))
+
+
+## How far down-course the leading marble is.
+##
+## The field are siblings, not children: `RaceManager` adds the course and the
+## marbles to the same parent, and so does `tools/probe_course.tscn`. Reading the
+## parent rather than being handed the field keeps this working under both
+## without either of them having to know the course wants to watch.
+##
+## Zero when there is nobody racing, which is also what the first frame looks
+## like — `_on_calving_timeout` treats that as "not yet" rather than as the start
+## line, so nothing calves onto a grid that has not moved.
+func _field_front() -> float:
+	var parent := get_parent()
+	if parent == null or curve == null:
+		return 0.0
+
+	var front := 0.0
+	for node in parent.get_children():
+		if node is Marble and is_instance_valid(node):
+			front = maxf(front, curve.get_closest_offset(node.global_position))
+	return front
+
+
+## One boulder off one bank, already moving.
+func _calve(s: float, side: float) -> void:
+	var frame := _frame_at(s)
+	var release: Vector3 = _shell.bank_point(s, side, CALVING_HEIGHT)
+
+	var boulder := _add_boulder(
+		Transform3D(frame.basis, release),
+		0.0,
+		BOULDER_RADIUS * randf_range(0.82, 1.0)
+	)
+	# Inwards across the bed and a little down-course, in the frame's own axes so
+	# it still reads right through the sweeper where the channel is turning.
+	boulder.linear_velocity = frame.basis * Vector3(
+		-side * CALVING_INWARD, 0.0, -CALVING_ALONG
+	)
+
+
+func _add_boulder(frame: Transform3D, lateral: float, radius: float) -> RigidBody3D:
+	var boulder := RigidBody3D.new()
+	boulder.name = "IceBoulder"
+	boulder.mass = BOULDER_MASS
+	# Same reason `Marble` sets it: a body resting against the start barrier
+	# falls asleep, and Godot does not wake it when the static geometry it is
+	# leaning on moves away. A sleeping boulder never starts the race.
+	boulder.can_sleep = false
+	# It is bigger than a marble but it is also faster than one down the ice, and
+	# a heavy sphere on a thin bridge deck tunnels through it without this.
+	boulder.continuous_cd = true
+
+	var surface := PhysicsMaterial.new()
+	surface.friction = CENTRE_FRICTION
+	surface.bounce = BOUNCE
+	boulder.physics_material_override = surface
+
+	var shape := SphereShape3D.new()
+	shape.radius = radius
+	var collider := CollisionShape3D.new()
+	collider.shape = shape
+	boulder.add_child(collider)
+
+	var mesh := SphereMesh.new()
+	mesh.radius = radius
+	mesh.height = radius * 2.0
+	var visual := MeshInstance3D.new()
+	visual.mesh = mesh
+	# Deliberately not a marble colour. `RaceManager` hands the field bright
+	# skins, and a boulder that could be mistaken for a racer at speed makes the
+	# rank tags look wrong.
+	visual.material_override = _material(IceKit.ICE_RIME)
+	boulder.add_child(visual)
+
+	boulder.transform = Transform3D(
+		Basis.IDENTITY, frame * Vector3(lateral, radius + 0.2, 0.0)
+	)
+	add_child(boulder)
+	return boulder
 
 
 # --- Icefall ------------------------------------------------------------------
@@ -846,12 +1517,14 @@ func _on_icefall_timeout(timer: Timer) -> void:
 
 
 func _spawn_ice() -> void:
-	var s := randf_range(ICEFALL_FROM * LENGTH, ICEFALL_TO * LENGTH)
+	var band: Array = ICEFALL_BANDS[randi() % ICEFALL_BANDS.size()]
+	var s := randf_range(band[0] * LENGTH, band[1] * LENGTH)
 	var half := _half_width_at(s)
 	var frame := _frame_at(s)
 	var lateral := randf_range(-half * 0.8, half * 0.8)
 
 	var block := FallingRock.create(IceKit.ICE_PALE)
+	block.mass = ICEFALL_MASS
 	block.transform = frame.translated_local(
 		Vector3(lateral, ICEFALL_HEIGHT, 0.0)
 	)
@@ -1152,14 +1825,21 @@ func decorate_environment(environment: Environment, sun: DirectionalLight3D) -> 
 
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = AMBIENT_COLOUR
-	environment.ambient_light_energy = AMBIENT_ENERGY
+	environment.ambient_light_energy = AMBIENT_SHADED
 
 	environment.fog_enabled = true
 	environment.fog_light_color = FOG_COLOUR
 	environment.fog_density = FOG_DENSITY
 	environment.fog_sun_scatter = FOG_SUN_SCATTER
+	# Depth by distance rather than a flat curtain. The river's haze sits at one
+	# value across the whole frame; this pulls the far nunataks towards the sky
+	# colour and leaves the near bank alone, which is what separates three
+	# scenery bands that are otherwise the same shapes at three sizes.
+	environment.fog_aerial_perspective = 0.55
 
 	sun.light_color = SUN_COLOUR
+	sun.rotation_degrees = SUN_ANGLE
+	sun.light_energy = SUN_ENERGY
 
 
 ## Well below the run-out, which is the lowest point on the course. A marble over
